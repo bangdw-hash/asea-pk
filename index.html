@@ -371,6 +371,7 @@ button{font-family:inherit;cursor:pointer;border:none}
       <div class="spinner"></div>
       <p class="c-status" id="c-join-status">전광판에 연결하는 중…</p>
     </div>
+    <button class="c-btn ghost" id="c-btn-rejoin">🔄 연결이 안 되면 다시 시도</button>
   </div>
 </section>
 
@@ -384,6 +385,7 @@ button{font-family:inherit;cursor:pointer;border:none}
     <div class="c-flag-grid" id="c-flag-grid"></div>
     <p class="c-status" id="c-team-status" style="margin-top:16px"></p>
     <button class="c-btn" id="c-btn-solo" style="display:none" disabled>🤖 컴퓨터와 바로 대결 시작</button>
+    <button class="c-btn ghost" id="c-btn-reset">🔄 처음부터 다시 (연결 초기화)</button>
   </div>
 </section>
 
@@ -433,6 +435,7 @@ button{font-family:inherit;cursor:pointer;border:none}
     <div class="c-end-title" id="c-end-title">YOU WIN!</div>
     <p class="c-end-sub" id="c-end-sub">5 : 4 · 대한민국 승리</p>
     <button class="c-btn" id="c-btn-again">🔁 다시 대결</button>
+    <button class="c-btn ghost" id="c-btn-home">🏠 메인 화면으로 (바로 복귀)</button>
     <button class="c-btn ghost" id="c-btn-quit">나가기</button>
   </div>
 </section>
@@ -661,6 +664,8 @@ const TV={
      break;}
    case 'again':{ if(this.over&&this.teams[0]&&this.teams[1]&&$('#tv-end').classList.contains('on')){
      clearTimeout(this.endTid);this.startMatch(this.mode)} break;}
+   case 'home':{ // 종료 화면에서 컨트롤러가 즉시 메인 복귀 요청
+     if(this.over&&$('#tv-end').classList.contains('on')){clearTimeout(this.endTid);this.toLobby()} break;}
    case 'quit':{ this.onLeave(idx); try{this.players[idx]&&this.players[idx].close()}catch(e){} break;}
   }
  },
@@ -900,6 +905,13 @@ const C={
   pwBtn.addEventListener('contextmenu',e=>e.preventDefault());
   $('#c-btn-again').onclick=()=>{this.send({t:'again'});$('#c-btn-again').disabled=true;
     $('#c-end-sub').textContent='재경기를 준비하는 중…'};
+  $('#c-btn-home').onclick=()=>{this.send({t:'home'});
+    $('#c-btn-home').disabled=true;$('#c-btn-again').disabled=true;
+    $('#c-end-sub').textContent='메인 화면으로 돌아갑니다…';
+    if(navigator.vibrate)navigator.vibrate(25)};
+  $('#c-btn-reset').onclick=()=>{ // 잘못 접속/먹통 시 연결 초기화 (경기 전 화면에서만 노출)
+    this.send({t:'quit'});try{this.conn&&this.conn.close()}catch(e){};location.reload()};
+  $('#c-btn-rejoin').onclick=()=>location.reload();
   $('#c-btn-quit').onclick=()=>{this.send({t:'quit'});try{this.conn.close()}catch(e){};
     $('#c-join-status').textContent='참여해 주셔서 감사합니다! 또 도전하세요 ⚽';show('c-join');
     document.querySelector('#c-join .spinner').style.display='none'};
@@ -963,7 +975,7 @@ const C={
      $('#c-mn1').textContent=TEAMS.find(x=>x.c===m.teams[0]).a;
      $('#c-mn2').textContent=TEAMS.find(x=>x.c===m.teams[1]).a;
      $('#c-ms1').textContent='0';$('#c-ms2').textContent='0';
-     $('#c-btn-again').disabled=false;
+     $('#c-btn-again').disabled=false;$('#c-btn-home').disabled=false;
      this.feed('경기 시작! 전광판을 보세요','dim');
      $('#goalpad').classList.add('locked');$$('.padbtn').forEach(b=>b.classList.remove('sel'));
      this.resetKickUI();
@@ -1000,7 +1012,7 @@ const C={
      $('#c-end-title').textContent=m.win?'YOU WIN! 🏆':'YOU LOSE';
      $('#c-end-title').style.color=m.win?'var(--gold)':'var(--dim)';
      $('#c-end-sub').textContent=`${m.s[0]} : ${m.s[1]} · ${m.wn} 승리`;
-     $('#c-btn-again').disabled=false;
+     $('#c-btn-again').disabled=false;$('#c-btn-home').disabled=false;
      if(m.win&&navigator.vibrate)navigator.vibrate([80,60,80,60,160]);
      show('c-end');break}
   }
