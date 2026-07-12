@@ -854,7 +854,7 @@ const C={
  chargeLoop(){
   if(!this.charging)return;
   const el=performance.now()-this.chargeT0;
-  const ph=(el/1150)%2;                          // 1.15초에 0→100, 이후 왕복
+  const ph=(el/460)%2;                           // 0.46초에 0→100, 이후 왕복 (고속 게이지)
   this.pw=Math.round((ph<1?ph:2-ph)*100);
   this.drawPw();
   this.chargeRaf=requestAnimationFrame(()=>this.chargeLoop());
