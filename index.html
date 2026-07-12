@@ -654,6 +654,13 @@ const AUD={ctx:null,amb:null,ambG:null,
 ============================================================ */
 const PARAMS=new URLSearchParams(location.search);
 const IS_CTRL=PARAMS.has('room');
+/* 전광판(board.html) iframe 내장 모드: 셸과 postMessage로 표시/복귀 협상 */
+const IS_EMBED=!IS_CTRL&&PARAMS.get('embed')==='1'&&window.parent!==window;
+const EMB={
+ post(t,x){if(!IS_EMBED)return;try{parent.postMessage(Object.assign({t},x||{}),'*')}catch(e){}},
+ active(){this.post('gk26:active');TV._lastBusy=Date.now();TV._idleSent=false}
+};
+if(IS_EMBED)setInterval(()=>EMB.post('gk26:hb'),5000);
 
 /* ============================================================
    TV (호스트)
@@ -669,6 +676,8 @@ const TV={
  init(){
   show('tv-lobby');
   this.makePeer();
+  this._lastBusy=Date.now();this._idleSent=false;
+  if(IS_EMBED)$('#btn-demo').style.display='none';
   $('#btn-demo').onclick=()=>{AUD.ready();this.startDemo()};
   document.addEventListener('click',()=>AUD.ready(),{once:true});
   // 유휴/사망 연결 감시: 경기 중이 아닐 때
@@ -678,6 +687,12 @@ const TV={
     const now=Date.now();
     // 죽은 관중 연결 정리(65초 무신호)
     this.specs.filter(c=>now-(c._last||0)>65000).forEach(c=>{try{c.close()}catch(e){};this.dropSpec(c)});
+    // 내장 모드: 접속자 0명 + 경기 없음 30초 지속 → 셸에 전광판 복귀 요청
+    if(IS_EMBED){
+      const busy=!this.over||this.players[0]||this.players[1]||this.specs.length>0;
+      if(busy){this._lastBusy=now;this._idleSent=false}
+      else if(now-(this._lastBusy||0)>30000&&!this._idleSent){this._idleSent=true;EMB.post('gk26:idle')}
+    }
     if(!this.over)return;
     [0,1].forEach(i=>{
       if(!this.players[i])return;
@@ -704,6 +719,7 @@ const TV={
  renderQR(){
   const box=$('#qr-lobby');box.innerHTML='';
   const url=location.origin+location.pathname+'?room='+this.code;
+  EMB.post('gk26:url',{url}); // 셸(전광판) 배너 QR용
   if(location.protocol.startsWith('http')){
     new QRCode(box,{text:url,width:300,height:300,colorDark:'#0a1322',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M});
   }else box.innerHTML='<div style="width:300px;height:300px;display:flex;align-items:center;justify-content:center;color:#5a6a86;font-size:15px;text-align:center;line-height:1.7">웹 주소로 배포하면<br>QR이 표시됩니다<br><br>코드 입장은 가능</div>';
@@ -716,6 +732,7 @@ const TV={
   this.lastMsg[idx]=this.lastAct[idx]=Date.now();
   c.on('open',()=>{
     this.lastMsg[idx]=this.lastAct[idx]=Date.now();
+    EMB.active(); // 폰 접속 → 셸에 게임 화면 표시 요청
     c.send({t:'slot',p:idx,opp:this.teams[1-idx]?this.teams[1-idx].c:null,solo:idx===0&&!this.players[1]});
     this.refreshSlots();
   });
@@ -738,6 +755,7 @@ const TV={
   c._last=Date.now();
   c.on('open',()=>{
     c._last=Date.now();this.specs.push(c);this.updateSpecCnt();
+    EMB.active(); // 관중 접속도 게임 화면 유지 사유
     try{c.send({t:'spec',live:!this.over,s:[sum(this.kicks[0]),sum(this.kicks[1])],
       teams:this.teams[0]&&this.teams[1]?[this.teams[0].c,this.teams[1].c]:null})}catch(e){}
   });
