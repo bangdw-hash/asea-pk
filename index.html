@@ -295,6 +295,28 @@ button{font-family:inherit;cursor:pointer;border:none}
 .c-end-title{font-family:'Black Han Sans';font-size:52px;text-align:center;margin-top:30px}
 .c-end-sub{text-align:center;color:var(--dim);margin-top:8px;font-size:14px}
 #confetti{position:fixed;inset:0;pointer-events:none;z-index:60}
+
+/* 관전자(관중석) */
+.vote-row{display:flex;gap:10px;margin-top:14px}
+.vote-row .c-btn{margin-top:0;flex:1}
+.cheer-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:14px}
+.cheer-btn{font-size:36px;padding:16px 0;border-radius:14px;background:linear-gradient(180deg,#15223b,#101b30);
+  border:1.5px solid var(--line);transition:transform .08s}
+.cheer-btn:active{transform:scale(.86);border-color:var(--gold)}
+
+/* TV 관중 예측 바 */
+.vote-bar{position:absolute;left:50%;bottom:6.5vh;transform:translateX(-50%);z-index:6;display:none;
+  background:rgba(8,13,24,.92);border:1px solid #2b3d5e;border-radius:.8vw;padding:1.1vh 1.8vw;
+  font-weight:900;font-size:clamp(14px,1.35vw,25px);color:var(--ink);
+  filter:drop-shadow(0 10px 26px rgba(0,0,0,.5))}
+.vote-bar.on{display:block}
+.vote-bar b.g{color:var(--gold)}
+.vote-bar b.s{color:#8fd4ff}
+
+/* 결과 카드 오버레이 */
+#card-ovl{display:none;position:fixed;inset:0;background:rgba(4,7,13,.95);z-index:80;padding:20px;overflow:auto}
+#card-ovl p{text-align:center;color:var(--ink);font-weight:700;margin:8px 0 12px}
+#card-ovl img{width:100%;border-radius:12px;box-shadow:0 18px 50px rgba(0,0,0,.6)}
 </style>
 </head>
 <body>
@@ -334,7 +356,7 @@ button{font-family:inherit;cursor:pointer;border:none}
 <section class="scene" id="tv-game">
   <canvas id="pitch"></canvas>
   <div class="bug">
-    <div class="bug-top"><span>ASEA 골든킥 2026 · PENALTY SHOOTOUT</span></div>
+    <div class="bug-top"><span>ASEA 골든킥 2026 · PENALTY SHOOTOUT</span><span id="spec-cnt" style="margin-left:auto"></span></div>
     <div class="bug-main">
       <div class="bug-team"><img id="bug-f1" alt=""><span class="abbr" id="bug-a1">KOR</span></div>
       <div class="bug-pips" id="pips1"></div>
@@ -355,6 +377,7 @@ button{font-family:inherit;cursor:pointer;border:none}
     </div>
   </div>
   <div class="round-banner" id="round-banner"><div class="r" id="rb-round">ROUND 1</div><div class="k" id="rb-kicker">대한민국 키커</div></div>
+  <div class="vote-bar" id="vote-bar"></div>
   <div class="result-banner" id="result-banner">GOAL!</div>
   <div class="tv-count" id="tv-count">3</div>
   <div class="vs-ovl" id="vs-ovl">
@@ -457,10 +480,46 @@ button{font-family:inherit;cursor:pointer;border:none}
     <p class="c-end-sub" id="c-end-sub">5 : 4 · 대한민국 승리</p>
     <p class="c-end-sub" id="c-streak" style="color:var(--gold);font-weight:900;font-size:15px"></p>
     <button class="c-btn" id="c-btn-again">🔁 다시 대결</button>
+    <button class="c-btn ghost" id="c-btn-card">📸 결과 카드 저장·공유</button>
     <button class="c-btn ghost" id="c-btn-home">🏠 메인 화면으로 (바로 복귀)</button>
     <button class="c-btn ghost" id="c-btn-quit">나가기</button>
   </div>
 </section>
+
+<!-- ============ 컨트롤러 : 관중석 ============ -->
+<section class="scene c-scene" id="c-spec">
+  <div class="c-wrap">
+    <div class="c-head">
+      <p class="c-eyebrow">SPECTATOR · 관중석</p>
+      <h1 class="c-title">응원하기<small>지금은 두 자리가 모두 사용 중 — 경기를 응원하고 승부를 예측하세요!</small></h1>
+    </div>
+    <div class="c-card" style="text-align:center">
+      <div class="c-minibug" style="margin-top:0;padding-top:0">
+        <span><img id="s-mf1" alt=""> <span id="s-mn1"></span></span>
+        <span class="s"><span id="s-ms1">0</span> : <span id="s-ms2">0</span></span>
+        <span><span id="s-mn2"></span> <img id="s-mf2" alt=""></span>
+      </div>
+      <p class="c-status" id="s-status" style="margin-top:12px">경기를 기다리는 중…</p>
+    </div>
+    <div class="vote-row">
+      <button class="c-btn" id="v-goal" disabled>⚽ 골이다!</button>
+      <button class="c-btn ghost" id="v-save" disabled>🧤 막힌다!</button>
+    </div>
+    <div class="cheer-grid">
+      <button class="cheer-btn" data-e="0">👏</button>
+      <button class="cheer-btn" data-e="1">🔥</button>
+      <button class="cheer-btn" data-e="2">⚽</button>
+      <button class="cheer-btn" data-e="3">😱</button>
+    </div>
+    <p class="c-status" id="s-hint" style="margin-top:10px">이모지를 누르면 전광판에 응원이 날아갑니다!</p>
+    <button class="c-btn ghost" id="s-btn-retry" style="margin-top:auto">🎮 자리가 나면 여기를 눌러 참가</button>
+  </div>
+</section>
+<div id="card-ovl">
+  <p>이미지를 길게 눌러 저장하세요 📥</p>
+  <img id="card-img" alt="결과 카드">
+  <button class="c-btn ghost" id="card-close" style="margin-top:14px">닫기</button>
+</div>
 <script>
 "use strict";
 /* ============================================================
@@ -605,6 +664,7 @@ const TV={
  picks:{}, pickTid:null, ringTid:null, cpuTid:[null,null], endTid:null,
  lastMsg:[0,0], lastAct:[0,0],              // 마지막 수신(핑 포함) / 마지막 사용자 행동
  recs:[null,null],                          // 각 플레이어 폰의 전적 {s:연승,w:승,g:경기}
+ specs:[], votes:{goal:0,save:0}, voteOpen:false, roundLog:[],
 
  init(){
   show('tv-lobby');
@@ -615,8 +675,10 @@ const TV={
   //  - 15초간 아무 신호(핑 포함) 없음 → 브라우저 종료로 판단, 슬롯 해제
   //  - 국가 미선택 상태로 30초간 조작 없음 → 자동 퇴장, 메인 유지
   setInterval(()=>{
-    if(!this.over)return;
     const now=Date.now();
+    // 죽은 관중 연결 정리(65초 무신호)
+    this.specs.filter(c=>now-(c._last||0)>65000).forEach(c=>{try{c.close()}catch(e){};this.dropSpec(c)});
+    if(!this.over)return;
     [0,1].forEach(i=>{
       if(!this.players[i])return;
       if(now-this.lastMsg[i]>15000)this.dropIdle(i);
@@ -649,7 +711,7 @@ const TV={
  },
  onConn(c){
   const idx=this.players[0]?(this.players[1]?-1:1):0;
-  if(idx<0||!this.over){c.on('open',()=>{c.send({t:'full'});setTimeout(()=>c.close(),400)});return}
+  if(idx<0||!this.over){this.addSpec(c);return}  // 자리 없음/경기 중 → 관중석 입장
   this.players[idx]=c;
   this.lastMsg[idx]=this.lastAct[idx]=Date.now();
   c.on('open',()=>{
@@ -663,12 +725,51 @@ const TV={
  onLeave(idx){
   this.players[idx]=null;this.teams[idx]=null;this.recs[idx]=null;
   if(!this.over){ this.abortMatch(); }
-  else this.refreshSlots();
+  else {this.refreshSlots();this.bcastSpec({t:'lobby'})}
   const other=this.players[1-idx];
   if(other)other.send({t:'slot',p:1-idx,opp:null,solo:(1-idx)===0});
  },
  sendTo(i,m){const c=this.players[i];if(c&&c.open)try{c.send(m)}catch(e){}},
  bcast(m){this.sendTo(0,m);this.sendTo(1,m)},
+
+ /* ---------- 관중석 ---------- */
+ addSpec(c){
+  if(this.specs.length>=30){c.on('open',()=>{c.send({t:'full'});setTimeout(()=>{try{c.close()}catch(e){}},400)});return}
+  c._last=Date.now();
+  c.on('open',()=>{
+    c._last=Date.now();this.specs.push(c);this.updateSpecCnt();
+    try{c.send({t:'spec',live:!this.over,s:[sum(this.kicks[0]),sum(this.kicks[1])],
+      teams:this.teams[0]&&this.teams[1]?[this.teams[0].c,this.teams[1].c]:null})}catch(e){}
+  });
+  c.on('data',m=>this.onSpecMsg(c,m));
+  c.on('close',()=>this.dropSpec(c));
+ },
+ dropSpec(c){
+  const n=this.specs.length;this.specs=this.specs.filter(x=>x!==c);
+  if(this.specs.length!==n)this.updateSpecCnt();
+ },
+ bcastSpec(m){this.specs.forEach(c=>{if(c.open)try{c.send(m)}catch(e){}})},
+ onSpecMsg(c,m){
+  if(!m||typeof m!=='object')return;
+  c._last=Date.now();
+  switch(m.t){
+   case 'ping':break;
+   case 'cheer':{ // 초당 1회 제한 → 전광판 이모지 파티클
+     const now=Date.now();if(now-(c._lc||0)<900)break;c._lc=now;
+     GFX.cheer(['👏','🔥','⚽','😱'][clamp(+m.e||0,0,3)]);break}
+   case 'vote':{ // 킥 준비 시간 동안 1인 1표
+     if(!this.voteOpen||m.turn!==this.turn||c._vt===this.turn)break;
+     if(m.v!=='goal'&&m.v!=='save')break;
+     c._vt=this.turn;this.votes[m.v]++;this.updateVoteBar();break}
+  }
+ },
+ updateSpecCnt(){$('#spec-cnt').textContent=this.specs.length?'👀 관중 '+this.specs.length:''},
+ updateVoteBar(){
+  const g=this.votes.goal,s=this.votes.save,tot=g+s,el=$('#vote-bar');
+  if(!tot||!this.voteOpen){el.classList.remove('on');return}
+  el.classList.add('on');
+  el.innerHTML=`👀 관중 예측 — <b class="g">⚽ 골 ${Math.round(g/tot*100)}%</b> · <b class="s">🧤 선방 ${Math.round(s/tot*100)}%</b>`;
+ },
  fmtRec(i,forCpu){
   if(forCpu)return '';
   const r=this.recs[i];
@@ -735,7 +836,7 @@ const TV={
   this.teams=[a,b];this.startMatch('demo');
  },
  startMatch(mode){
-  this.mode=mode;this.kicks=[[],[]];this.turn=0;this.over=false;this.picks={};
+  this.mode=mode;this.kicks=[[],[]];this.turn=0;this.over=false;this.picks={};this.roundLog=[];
   show('tv-game');GFX.reset();this.updateBug();
   AUD.ambient(true);
   // VS 인트로
@@ -747,6 +848,7 @@ const TV={
   $('#vs-r2').innerHTML=this.fmtRec(1,mode!=='pvp');
   const ovl=$('#vs-ovl');ovl.classList.add('on');
   this.bcast({t:'begin',mode,teams:[this.teams[0].c,this.teams[1].c]});
+  this.bcastSpec({t:'sbegin',teams:[this.teams[0].c,this.teams[1].c]});
   setTimeout(()=>{ovl.classList.remove('on');this.countdown(()=>{AUD.whistle();this.nextTurn()})},2300);
  },
  countdown(cb){
@@ -781,6 +883,9 @@ const TV={
      this.cpuTid[i]=setTimeout(()=>{const r=(i===ki)?'k':'g';
        if(this.picks[r]==null){this.picks[r]=this.cpuPick(r);this.chip(r,true);this.tryResolve()}},900+Math.random()*2600);
   }});
+  // 관중 예측 투표 개시
+  this.votes={goal:0,save:0};this.voteOpen=true;this.updateVoteBar();
+  this.bcastSpec({t:'votestart',turn:this.turn,sec:PICK_SEC,kicker:this.teams[ki].n});
   // HUD 링
   this._ab={k:this.teams[ki].a,g:this.teams[gi].a};
   $('#chip-k-txt').textContent=this.teams[ki].a+' 방향·파워 선택 중';
@@ -833,10 +938,13 @@ const TV={
   else outcome=kp.z!==gp.z?'goal':'save';
   const goal=outcome==='goal', kick=kp.z||null, dive=gp.z, pw=kp.pw||0;
   this.kicks[ki]=this.kicks[ki].concat(goal);
+  this.roundLog.push({ki,kick,dive,outcome,pw});     // 결과 카드용 라운드 기록
+  this.voteOpen=false;this.updateVoteBar();          // 관중 투표 마감
   const resTurn=this.turn;
   GFX.playTurn({kick,dive:outcome==='weak'?kick:dive,outcome,goal,pw,kickerTeam:this.teams[ki],onImpact:()=>{
     [0,1].forEach(i=>{ if(this.isHuman(i))this.sendTo(i,{t:'result',goal,outcome,pw,youKicked:i===ki,kick,dive,
       s:[sum(this.kicks[0]),sum(this.kicks[1])]}); });
+    this.bcastSpec({t:'sres',goal,outcome,s:[sum(this.kicks[0]),sum(this.kicks[1])]});
     this.updateBug();
   },onDone:()=>{
     const w=decidedWinner(this.kicks[0],this.kicks[1]);
@@ -866,19 +974,24 @@ const TV={
     $('#end-flag').src=flag(wt.c);$('#end-name').textContent=wt.n;
     $('#end-sc').textContent=sa+' : '+sb;
     show('tv-end');confettiBurst();
-    [0,1].forEach(i=>{ if(this.isHuman(i))this.sendTo(i,{t:'end',win:i===w,s:[sa,sb],wn:wt.n}); });
+    [0,1].forEach(i=>{ if(this.isHuman(i))this.sendTo(i,{t:'end',win:i===w,s:[sa,sb],wn:wt.n,
+      teams:[this.teams[0].c,this.teams[1].c],rounds:this.roundLog}); });
+    this.bcastSpec({t:'sfin',wn:wt.n,s:[sa,sb]});
     clearTimeout(this.endTid);
     this.endTid=setTimeout(()=>this.toLobby(),10000);
   },1400);
  },
  abortMatch(){
   this.over=true;clearTimeout(this.pickTid);clearInterval(this.ringTid);
+  this.voteOpen=false;this.updateVoteBar();
   [0,1].forEach(i=>clearTimeout(this.cpuTid[i]));
   this.toLobby();
  },
  toLobby(){
   clearTimeout(this.endTid);this.over=true;AUD.ambient(false);
+  this.voteOpen=false;this.updateVoteBar();
   this.teams=[null,null];this.kicks=[[],[]];
+  this.bcastSpec({t:'lobby'});                        // 관중에게 참가 기회 알림
   [0,1].forEach(i=>{const c=this.players[i];
     if(c&&c.open)this.sendTo(i,{t:'slot',p:i,opp:null,solo:i===0&&!this.players[1]});});
   // 데모 종료 시 접속자가 없으면 슬롯 초기화
@@ -985,6 +1098,18 @@ const C={
   $('#c-btn-reset').onclick=()=>{ // 잘못 접속/먹통 시 연결 초기화 (경기 전 화면에서만 노출)
     this.send({t:'quit'});try{this.conn&&this.conn.close()}catch(e){};location.reload()};
   $('#c-btn-rejoin').onclick=()=>location.reload();
+  // 관중석: 응원 이모지(초당 1회) · 승부 예측 · 참가 재시도
+  $$('.cheer-btn').forEach(b=>b.onclick=()=>{
+    const now=Date.now();if(now-(this._lastCheer||0)<900)return;this._lastCheer=now;
+    this.send({t:'cheer',e:+b.dataset.e});
+    if(navigator.vibrate)navigator.vibrate(12);
+  });
+  $('#v-goal').onclick=()=>this.castVote('goal');
+  $('#v-save').onclick=()=>this.castVote('save');
+  $('#s-btn-retry').onclick=()=>location.reload();
+  // 결과 카드
+  $('#c-btn-card').onclick=()=>this.makeCard();
+  $('#card-close').onclick=()=>$('#card-ovl').style.display='none';
   $('#c-btn-quit').onclick=()=>{this.send({t:'quit'});try{this.conn.close()}catch(e){};
     $('#c-join-status').textContent='참여해 주셔서 감사합니다! 또 도전하세요 ⚽';show('c-join');
     document.querySelector('#c-join .spinner').style.display='none'};
@@ -1047,6 +1172,20 @@ const C={
   this.feed(`파워 ${this.pw}% 슛! 전광판을 보세요 👀${warn}`,'dim');
   if(navigator.vibrate)navigator.vibrate(45);
  },
+ castVote(v){
+  if(this.voted!=null||this.role!=='spec')return;
+  this.voted=v;
+  this.send({t:'vote',turn:this.specTurn,v});
+  $('#v-goal').disabled=true;$('#v-save').disabled=true;
+  $('#s-status').textContent=v==='goal'?'⚽ 골 예측 완료! 결과를 지켜보세요':'🧤 선방 예측 완료! 결과를 지켜보세요';
+  if(navigator.vibrate)navigator.vibrate(20);
+ },
+ setSpecTeams(codes){
+  const a=TEAMS.find(x=>x.c===codes[0]),b=TEAMS.find(x=>x.c===codes[1]);
+  if(!a||!b)return;
+  $('#s-mf1').src=flag(a.c);$('#s-mn1').textContent=a.a;
+  $('#s-mf2').src=flag(b.c);$('#s-mn2').textContent=b.a;
+ },
  resetKickUI(){
   this.dirZ=null;this.charging=false;this.pw=0;this._cyc=0;cancelAnimationFrame(this.chargeRaf);
   $('#c-power').classList.remove('on');$('#pw-btn').disabled=false;
@@ -1058,6 +1197,36 @@ const C={
   if(!m||typeof m!=='object')return;
   switch(m.t){
    case 'full':{$('#c-join-status').innerHTML='이미 두 명이 대결 중입니다.<br>다음 경기를 기다려 주세요!';show('c-join');break}
+   case 'spec':{ // 자리 없음 → 관중석 입장
+     this.role='spec';this.voted=null;
+     if(m.teams)this.setSpecTeams(m.teams);
+     if(m.s){$('#s-ms1').textContent=m.s[0];$('#s-ms2').textContent=m.s[1]}
+     $('#s-status').textContent=m.live?'경기 진행 중! 응원을 보내세요 📣':'다음 경기를 기다리는 중…';
+     show('c-spec');break}
+   case 'sbegin':{ if(this.role!=='spec')break;
+     this.setSpecTeams(m.teams);
+     $('#s-ms1').textContent='0';$('#s-ms2').textContent='0';
+     $('#s-status').textContent='경기 시작! 응원을 보내세요 📣';break}
+   case 'votestart':{ if(this.role!=='spec')break;
+     this.specTurn=m.turn;this.voted=null;
+     $('#v-goal').disabled=false;$('#v-save').disabled=false;
+     $('#s-status').textContent=`🔮 ${m.kicker||''} 키커의 킥 — 골일까요? 예측하세요!`;
+     if(navigator.vibrate)navigator.vibrate([20,30,20]);break}
+   case 'sres':{ if(this.role!=='spec')break;
+     $('#s-ms1').textContent=m.s[0];$('#s-ms2').textContent=m.s[1];
+     $('#v-goal').disabled=true;$('#v-save').disabled=true;
+     if(this.voted!=null){
+       const hit=(this.voted==='goal')===!!m.goal;
+       $('#s-status').textContent=hit?'🎯 예측 적중! 대단해요!':'😅 빗나갔어요… 다음 킥에 다시!';
+       if(hit&&navigator.vibrate)navigator.vibrate([40,40,90]);
+     }else $('#s-status').textContent=m.goal?'⚽ GOAL!':'🧤 SAVE!';
+     this.voted=null;break}
+   case 'sfin':{ if(this.role!=='spec')break;
+     $('#v-goal').disabled=true;$('#v-save').disabled=true;
+     $('#s-status').textContent=`🏁 ${m.wn} 승리 (${m.s[0]}:${m.s[1]})! 다음 경기를 기다리는 중…`;break}
+   case 'lobby':{ if(this.role!=='spec')break;
+     $('#s-status').innerHTML='🎮 <b style="color:var(--gold)">지금 자리가 비었습니다!</b> 아래 버튼을 눌러 참가하세요';
+     if(navigator.vibrate)navigator.vibrate([50,50,50]);break}
    case 'idlekick':{ // 30초 무반응/신호 두절 → 전광판이 슬롯 해제
      clearInterval(this.pingTid);try{this.conn&&this.conn.close()}catch(e){}
      $('#c-join-status').innerHTML='⏱ 30초 동안 입력이 없어 연결이 종료되었습니다.<br>다시 도전하려면 QR을 스캔하거나 아래 버튼을 누르세요!';
@@ -1120,6 +1289,8 @@ const C={
      if(navigator.vibrate)navigator.vibrate(good?[60,50,120]:60);
      break}
    case 'end':{
+     this.lastEnd={win:m.win,s:m.s,wn:m.wn,teams:m.teams||null,rounds:m.rounds||[]};
+     $('#c-btn-card').disabled=!m.teams;
      $('#c-end-title').textContent=m.win?'YOU WIN! 🏆':'YOU LOSE';
      $('#c-end-title').style.color=m.win?'var(--gold)':'var(--dim)';
      $('#c-end-sub').textContent=`${m.s[0]} : ${m.s[1]} · ${m.wn} 승리`;
@@ -1135,6 +1306,82 @@ const C={
      if(m.win&&navigator.vibrate)navigator.vibrate([80,60,80,60,160]);
      show('c-end');break}
   }
+ },
+ /* ---------- 결과 카드 생성 · 공유 (서버 불필요, 폰에서 직접 렌더) ---------- */
+ async makeCard(){
+  const d=this.lastEnd;
+  if(!d||!d.teams||this._carding)return;
+  this._carding=true;
+  const btn=$('#c-btn-card');btn.disabled=true;btn.textContent='📸 카드 생성 중…';
+  try{
+   try{await Promise.race([document.fonts.ready,new Promise(r=>setTimeout(r,1500))])}catch(e){}
+   const CW=1080,CH=1350,cv=document.createElement('canvas');cv.width=CW;cv.height=CH;
+   const c=cv.getContext('2d');
+   // 배경 + 골드 프레임
+   const g=c.createLinearGradient(0,0,0,CH);g.addColorStop(0,'#13223f');g.addColorStop(1,'#070d18');
+   c.fillStyle=g;c.fillRect(0,0,CW,CH);
+   c.strokeStyle='#e9c25b';c.lineWidth=10;c.strokeRect(28,28,CW-56,CH-56);
+   c.textAlign='center';
+   c.fillStyle='#e9c25b';c.font='700 30px Oswald,sans-serif';
+   c.fillText('ASEA AVIATION COLLEGE · 2026 WORLD CUP SPECIAL',CW/2,112);
+   c.fillStyle='#ffffff';c.font="900 96px 'Black Han Sans',sans-serif";
+   c.fillText('⚽ 골든킥 2026',CW/2,218);
+   c.fillStyle=d.win?'#e9c25b':'#8ea0c0';c.font="900 62px 'Black Han Sans',sans-serif";
+   c.fillText(d.win?'🏆 VICTORY!':'GOOD GAME',CW/2,322);
+   // 국기(CORS 로드, 실패 시 약칭 텍스트 폴백)
+   const t1=TEAMS.find(x=>x.c===d.teams[0]),t2=TEAMS.find(x=>x.c===d.teams[1]);
+   const load=src=>new Promise(r=>{const im=new Image();im.crossOrigin='anonymous';
+     const to=setTimeout(()=>r(null),2500);
+     im.onload=()=>{clearTimeout(to);r(im)};im.onerror=()=>{clearTimeout(to);r(null)};im.src=src});
+   const [f1,f2]=await Promise.all([load(flag(d.teams[0])),load(flag(d.teams[1]))]);
+   const fy=410,fw=280,fh=187;
+   const drawSide=(im,x,t)=>{
+     if(im){c.save();c.shadowColor='rgba(0,0,0,.6)';c.shadowBlur=22;
+       c.drawImage(im,x-fw/2,fy,fw,fh);c.restore();
+       c.strokeStyle='rgba(255,255,255,.28)';c.lineWidth=3;c.strokeRect(x-fw/2,fy,fw,fh);}
+     else{c.fillStyle='#1b2942';c.fillRect(x-fw/2,fy,fw,fh);
+       c.fillStyle='#e9c25b';c.font='900 66px Oswald,sans-serif';c.fillText(t.a,x,fy+fh/2+24)}
+     c.fillStyle='#fff';c.font="900 42px 'Black Han Sans',sans-serif";c.fillText(t.n,x,fy+fh+62)};
+   drawSide(f1,236,t1);drawSide(f2,CW-236,t2);
+   c.fillStyle='#e9c25b';c.font='700 118px Oswald,sans-serif';
+   c.fillText(d.s[0]+' : '+d.s[1],CW/2,fy+140);
+   c.fillStyle='#8ea0c0';c.font='700 28px Oswald,sans-serif';c.fillText('FULL TIME · PENALTY SHOOTOUT',CW/2,fy+188);
+   // 라운드별 기록(●=골, ●빨강=실패)
+   const py0=772;
+   [0,1].forEach(side=>{
+     const rs=(d.rounds||[]).filter(r=>r.ki===side);
+     const n=Math.max(5,rs.length),t=(side===0?t1:t2);
+     c.textAlign='left';c.fillStyle='#8ea0c0';c.font='700 30px Oswald,sans-serif';
+     c.fillText(t.a,150,py0+side*72+11);
+     for(let i=0;i<n;i++){
+       c.beginPath();c.arc(268+i*56,py0+side*72,17,0,7);
+       c.fillStyle=i<rs.length?(rs[i].outcome==='goal'?'#e9c25b':'#e14848'):'#22314e';c.fill();
+     }
+     c.textAlign='center';
+   });
+   // 이 폰의 전적
+   const rec=REC.get();
+   c.fillStyle='#e9c25b';c.font="900 46px 'Black Han Sans',sans-serif";
+   c.fillText(rec.s>=2?`🔥 ${rec.s}연승 달성!`:'도전은 계속된다!',CW/2,988);
+   c.fillStyle='#c9d4e8';c.font='700 34px Oswald,sans-serif';
+   c.fillText(`MY RECORD  ${rec.w}W ${rec.g-rec.w}L · WIN ${rec.g?Math.round(rec.w/rec.g*100):0}%`,CW/2,1048);
+   // 푸터
+   c.fillStyle='#8ea0c0';c.font='500 30px sans-serif';
+   c.fillText(new Date().toLocaleDateString('ko-KR',{year:'numeric',month:'long',day:'numeric'}),CW/2,1168);
+   c.fillStyle='#e9c25b';c.font="700 34px 'Black Han Sans',sans-serif";
+   c.fillText('아세아항공직업전문학교 · 2026 월드컵 기념 승부차기',CW/2,1232);
+   // 공유(Web Share) → 미지원 시 길게 눌러 저장 오버레이
+   const blob=await new Promise(r=>cv.toBlob(r,'image/png'));
+   const file=new File([blob],'asea-goldenkick-2026.png',{type:'image/png'});
+   if(navigator.canShare&&navigator.canShare({files:[file]})){
+     try{await navigator.share({files:[file],title:'ASEA 골든킥 2026',text:'ASEA 골든킥 2026 승부차기 결과!'})}
+     catch(e){/* 사용자가 공유를 취소한 경우 */}
+   }else{
+     $('#card-img').src=cv.toDataURL('image/png');
+     $('#card-ovl').style.display='block';
+   }
+  }catch(e){ this.feed('카드 생성 실패 — 다시 시도해 주세요','miss') }
+  btn.disabled=false;btn.textContent='📸 결과 카드 저장·공유';this._carding=false;
  },
  runTimer(sec){
   clearInterval(this.timerId);
@@ -1191,7 +1438,7 @@ const GFX=(()=>{
  const cv=document.getElementById('pitch'),ctx=cv.getContext('2d');
  let W=0,H=0,dpr=1,bg=null,vig=null,noiseP=null;
  let GL,GT,GX,GW,GH,SPOT,KH,GKH;
- let teams=[null,null],kickerIdx=0,anim=null,ripple=null,flash=0,shake=0,sparks=[],trail=[],puffs=[];
+ let teams=[null,null],kickerIdx=0,anim=null,ripple=null,flash=0,shake=0,sparks=[],trail=[],puffs=[],cheers=[];
  const D2R=Math.PI/180, sin=Math.sin, cos=Math.cos;
 
  function zonePt(z){
@@ -1754,6 +2001,19 @@ const GFX=(()=>{
     ctx.fillStyle=`rgba(198,226,190,${(1-q)*.55})`;
     ctx.beginPath();ctx.arc(p.x+p.vx*q*34,p.y+p.vy*q*30+q*q*22,p.r*(1+q*1.4),0,7);ctx.fill()}
  }
+ /* ---------- 관중 응원 이모지 ---------- */
+ function drawCheers(now){
+  cheers=cheers.filter(p=>now-p.t<5200);
+  ctx.textAlign='center';ctx.textBaseline='middle';
+  for(const p of cheers){
+    const q=(now-p.t)/5200;
+    const x=p.x+sin(now*.002+p.ph)*W*.022, y=p.y-q*H*.6;
+    ctx.globalAlpha=q<.78?.95:.95*(1-(q-.78)/.22);
+    ctx.font=`${H*.045*(1+q*.25)}px serif`;
+    ctx.fillText(p.ch,x,y);
+  }
+  ctx.globalAlpha=1;
+ }
 
  /* ---------- 프레임 루프 ---------- */
  function frame(now){
@@ -1785,7 +2045,7 @@ const GFX=(()=>{
   ctx.drawImage(bg,0,0,W,H);
   twinkle(now);led(now);drawSparks(now);
   goalNet(now);drawTarget(now);
-  drawGK(now);drawKicker(now);drawPuffs(now);drawBall(now);
+  drawGK(now);drawKicker(now);drawPuffs(now);drawBall(now);drawCheers(now);
   if(flash>0){ctx.fillStyle=`rgba(255,242,200,${flash*.32})`;ctx.fillRect(-30,-30,W+60,H+60)}
   ctx.drawImage(vig,0,0,W,H);
   ctx.restore();
@@ -1800,6 +2060,8 @@ const GFX=(()=>{
 
  return{
   reset(){anim=null;ripple=null;flash=0;shake=0;sparks=[];trail=[];puffs=[];resize()},
+  cheer(ch){cheers.push({x:W*(.08+Math.random()*.84),y:H*1.03,ch:ch||'👏',ph:Math.random()*7,t:performance.now()});
+    if(cheers.length>60)cheers.shift()},
   setTeams(a,b,ki){teams=[a,b];kickerIdx=ki},
   playTurn({kick,dive,outcome,goal,pw,kickerTeam,onImpact,onDone}){
    outcome=outcome||(goal?'goal':'save');pw=pw||0;
