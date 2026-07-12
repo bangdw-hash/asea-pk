@@ -177,6 +177,8 @@ button{font-family:inherit;cursor:pointer;border:none}
 .vs-team img{width:clamp(150px,15vw,280px);border-radius:.6vw;box-shadow:0 26px 70px rgba(0,0,0,.65)}
 .vs-team .nm{font-weight:900;font-size:clamp(24px,2.4vw,46px);margin-top:2vh}
 .vs-team .pl{font-family:'Oswald';color:var(--gold);letter-spacing:.25em;font-size:clamp(13px,1.1vw,20px);margin-top:.6vh}
+.vs-team .rec{margin-top:1vh;color:var(--dim);font-size:clamp(12px,1.05vw,19px);font-weight:700}
+.vs-team .rec b{color:var(--gold)}
 .vs-x{font-family:'Black Han Sans';font-size:clamp(60px,7vw,130px);color:var(--gold);text-shadow:0 10px 50px rgba(233,194,91,.4)}
 
 /* ================= TV : 종료 ================= */
@@ -356,9 +358,9 @@ button{font-family:inherit;cursor:pointer;border:none}
   <div class="result-banner" id="result-banner">GOAL!</div>
   <div class="tv-count" id="tv-count">3</div>
   <div class="vs-ovl" id="vs-ovl">
-    <div class="vs-team"><img id="vs-f1" alt=""><div class="nm" id="vs-n1">대한민국</div><div class="pl" id="vs-p1">PLAYER 1</div></div>
+    <div class="vs-team"><img id="vs-f1" alt=""><div class="nm" id="vs-n1">대한민국</div><div class="pl" id="vs-p1">PLAYER 1</div><div class="rec" id="vs-r1"></div></div>
     <div class="vs-x">VS</div>
-    <div class="vs-team"><img id="vs-f2" alt=""><div class="nm" id="vs-n2">브라질</div><div class="pl" id="vs-p2">PLAYER 2</div></div>
+    <div class="vs-team"><img id="vs-f2" alt=""><div class="nm" id="vs-n2">브라질</div><div class="pl" id="vs-p2">PLAYER 2</div><div class="rec" id="vs-r2"></div></div>
   </div>
 </section>
 
@@ -602,6 +604,7 @@ const TV={
  mode:null, teams:[null,null], kicks:[[],[]], turn:0, over:true,
  picks:{}, pickTid:null, ringTid:null, cpuTid:[null,null], endTid:null,
  lastMsg:[0,0], lastAct:[0,0],              // 마지막 수신(핑 포함) / 마지막 사용자 행동
+ recs:[null,null],                          // 각 플레이어 폰의 전적 {s:연승,w:승,g:경기}
 
  init(){
   show('tv-lobby');
@@ -658,7 +661,7 @@ const TV={
   c.on('close',()=>this.onLeave(idx));
  },
  onLeave(idx){
-  this.players[idx]=null;this.teams[idx]=null;
+  this.players[idx]=null;this.teams[idx]=null;this.recs[idx]=null;
   if(!this.over){ this.abortMatch(); }
   else this.refreshSlots();
   const other=this.players[1-idx];
@@ -666,14 +669,22 @@ const TV={
  },
  sendTo(i,m){const c=this.players[i];if(c&&c.open)try{c.send(m)}catch(e){}},
  bcast(m){this.sendTo(0,m);this.sendTo(1,m)},
+ fmtRec(i,forCpu){
+  if(forCpu)return '';
+  const r=this.recs[i];
+  if(!r||!r.g)return '첫 도전!';
+  const wr=Math.round(r.w/r.g*100);
+  return (r.s>=2?`<b>🔥 ${r.s}연승 중</b> · `:'')+`통산 ${r.w}승 ${r.g-r.w}패 (${wr}%)`;
+ },
  refreshSlots(){
   [0,1].forEach(i=>{
     const el=$('#slot'+(i+1)),tx=$('#slot'+(i+1)+'-txt');
     const p=this.players[i],t=this.teams[i];
     el.classList.toggle('onair',!!p);
     if(!p){tx.textContent='접속 대기 중…';return}
-    tx.innerHTML=t?`<img src="${flag(t.c)}"> ${t.n} <b style="color:#41d97c">준비 완료</b>`
-                 :`<span class="pulse"></span> 접속됨 · 국가 선택 중`;
+    const rec=this.recs[i]&&this.recs[i].g?` <span style="color:#8ea0c0;font-weight:500;font-size:.85em">· ${this.fmtRec(i)}</span>`:'';
+    tx.innerHTML=(t?`<img src="${flag(t.c)}"> ${t.n} <b style="color:#41d97c">준비 완료</b>`
+                 :`<span class="pulse"></span> 접속됨 · 국가 선택 중`)+rec;
   });
  },
  onMsg(idx,m){
@@ -682,6 +693,9 @@ const TV={
   if(m.t!=='ping')this.lastAct[idx]=Date.now();
   switch(m.t){
    case 'ping':break;
+   case 'rec':{ // 폰의 통산 전적 수신 → 슬롯/VS 화면 표시용
+     this.recs[idx]={s:Math.max(0,+m.s||0),w:Math.max(0,+m.w||0),g:Math.max(0,+m.g||0)};
+     this.refreshSlots();break;}
    case 'team':{
      const t=TEAMS.find(x=>x.c===m.c);if(!t)return;
      if(this.teams[1-idx]&&this.teams[1-idx].c===t.c)return;
@@ -729,6 +743,8 @@ const TV={
   $('#vs-f2').src=flag(this.teams[1].c);$('#vs-n2').textContent=this.teams[1].n;
   $('#vs-p1').textContent=mode==='demo'?'CPU 1':'PLAYER 1';
   $('#vs-p2').textContent=(mode==='pvp')?'PLAYER 2':'CPU';
+  $('#vs-r1').innerHTML=this.fmtRec(0,mode==='demo');
+  $('#vs-r2').innerHTML=this.fmtRec(1,mode!=='pvp');
   const ovl=$('#vs-ovl');ovl.classList.add('on');
   this.bcast({t:'begin',mode,teams:[this.teams[0].c,this.teams[1].c]});
   setTimeout(()=>{ovl.classList.remove('on');this.countdown(()=>{AUD.whistle();this.nextTurn()})},2300);
@@ -1052,6 +1068,7 @@ const C={
      $('#c-slot-label').textContent='PLAYER '+(m.p+1);
      $('#c-btn-solo').style.display=m.solo?'':'none';$('#c-btn-solo').disabled=true;
      const rec=REC.get();
+     this.send({t:'rec',s:rec.s,w:rec.w,g:rec.g}); // 폰 전적을 전광판에 공유
      $('#c-team-status').innerHTML=(m.solo?'국가를 고르고, 상대가 없으면 컴퓨터와 대결하세요.':'국가를 고르면 자동으로 경기가 시작됩니다.')
        +' <b style="color:var(--gold)">30초 안에 선택!</b>'
        +(rec.s>=2?`<br>🔥 이 폰으로 현재 <b style="color:var(--gold)">${rec.s}연승 중</b> — 이어가세요!`:'');
@@ -1110,6 +1127,7 @@ const C={
      const rec=REC.get();rec.g++;
      if(m.win){rec.s++;rec.w++}else rec.s=0;
      REC.set(rec);
+     this.send({t:'rec',s:rec.s,w:rec.w,g:rec.g}); // 갱신된 전적을 전광판에 공유(재경기 VS 표시용)
      $('#c-streak').textContent=
        (m.win?(rec.s>=2?`🔥 ${rec.s}연승 중!`:'첫 승! 연승 도전 시작 🔥'):'연승 마감… 다시 도전!')
        +` · 이 폰 통산 ${rec.w}승 ${rec.g-rec.w}패 (승률 ${Math.round(rec.w/rec.g*100)}%)`;
