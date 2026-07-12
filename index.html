@@ -453,6 +453,7 @@ button{font-family:inherit;cursor:pointer;border:none}
     <div class="c-head" style="margin-top:10px"><p class="c-eyebrow">FULL TIME</p></div>
     <div class="c-end-title" id="c-end-title">YOU WIN!</div>
     <p class="c-end-sub" id="c-end-sub">5 : 4 · 대한민국 승리</p>
+    <p class="c-end-sub" id="c-streak" style="color:var(--gold);font-weight:900;font-size:15px"></p>
     <button class="c-btn" id="c-btn-again">🔁 다시 대결</button>
     <button class="c-btn ghost" id="c-btn-home">🏠 메인 화면으로 (바로 복귀)</button>
     <button class="c-btn ghost" id="c-btn-quit">나가기</button>
@@ -600,12 +601,31 @@ const TV={
  peer:null,code:null,players:[null,null],   // DataConnection
  mode:null, teams:[null,null], kicks:[[],[]], turn:0, over:true,
  picks:{}, pickTid:null, ringTid:null, cpuTid:[null,null], endTid:null,
+ lastMsg:[0,0], lastAct:[0,0],              // 마지막 수신(핑 포함) / 마지막 사용자 행동
 
  init(){
   show('tv-lobby');
   this.makePeer();
   $('#btn-demo').onclick=()=>{AUD.ready();this.startDemo()};
   document.addEventListener('click',()=>AUD.ready(),{once:true});
+  // 유휴/사망 연결 감시: 경기 중이 아닐 때
+  //  - 15초간 아무 신호(핑 포함) 없음 → 브라우저 종료로 판단, 슬롯 해제
+  //  - 국가 미선택 상태로 30초간 조작 없음 → 자동 퇴장, 메인 유지
+  setInterval(()=>{
+    if(!this.over)return;
+    const now=Date.now();
+    [0,1].forEach(i=>{
+      if(!this.players[i])return;
+      if(now-this.lastMsg[i]>15000)this.dropIdle(i);
+      else if(!this.teams[i]&&now-this.lastAct[i]>30000)this.dropIdle(i);
+    });
+  },5000);
+ },
+ dropIdle(i){
+  const c=this.players[i];if(!c)return;
+  this.sendTo(i,{t:'idlekick'});
+  setTimeout(()=>{try{c.close()}catch(e){}},350);
+  this.onLeave(i);
  },
  makePeer(){
   this.code=String(1000+Math.random()*9000|0);
@@ -628,7 +648,9 @@ const TV={
   const idx=this.players[0]?(this.players[1]?-1:1):0;
   if(idx<0||!this.over){c.on('open',()=>{c.send({t:'full'});setTimeout(()=>c.close(),400)});return}
   this.players[idx]=c;
+  this.lastMsg[idx]=this.lastAct[idx]=Date.now();
   c.on('open',()=>{
+    this.lastMsg[idx]=this.lastAct[idx]=Date.now();
     c.send({t:'slot',p:idx,opp:this.teams[1-idx]?this.teams[1-idx].c:null,solo:idx===0&&!this.players[1]});
     this.refreshSlots();
   });
@@ -656,7 +678,10 @@ const TV={
  },
  onMsg(idx,m){
   if(!m||typeof m!=='object')return;
+  this.lastMsg[idx]=Date.now();
+  if(m.t!=='ping')this.lastAct[idx]=Date.now();
   switch(m.t){
+   case 'ping':break;
    case 'team':{
      const t=TEAMS.find(x=>x.c===m.c);if(!t)return;
      if(this.teams[1-idx]&&this.teams[1-idx].c===t.c)return;
@@ -848,9 +873,15 @@ const TV={
 /* ============================================================
    컨트롤러 (모바일)
 ============================================================ */
+/* 단말기 기준 전적(연승/승률) — localStorage */
+const REC={
+ get(){try{const v=JSON.parse(localStorage.gk26rec||'null');
+   if(v&&typeof v.s==='number')return v}catch(e){}return{s:0,w:0,g:0}},
+ set(v){try{localStorage.gk26rec=JSON.stringify(v)}catch(e){}}
+};
 const C={
  conn:null,p:0,myTeam:null,oppTeam:null,turn:0,picked:false,soloOk:false,timerId:null,
- role:null,dirZ:null,charging:false,pw:0,chargeT0:0,chargeRaf:null,
+ role:null,dirZ:null,charging:false,pw:0,chargeT0:0,chargeRaf:null,pingTid:null,
  init(){
   show('c-join');
   const code=PARAMS.get('room');
@@ -858,9 +889,12 @@ const C={
   const to=setTimeout(()=>{$('#c-join-status').innerHTML='전광판을 찾지 못했습니다.<br>QR을 다시 스캔해 주세요.'},14000);
   peer.on('open',()=>{
     const c=peer.connect('asea-arena-'+code,{reliable:true});
-    c.on('open',()=>{clearTimeout(to);this.conn=c;$('#c-join-status').textContent='연결 완료!'});
+    c.on('open',()=>{clearTimeout(to);this.conn=c;$('#c-join-status').textContent='연결 완료!';
+      clearInterval(this.pingTid);
+      this.pingTid=setInterval(()=>this.send({t:'ping'}),4000)}); // 생존 신호
     c.on('data',m=>this.onMsg(m));
-    c.on('close',()=>{$('#c-join-status').innerHTML='전광판과의 연결이 끊어졌습니다.<br>QR을 다시 스캔해 주세요.';show('c-join')});
+    c.on('close',()=>{clearInterval(this.pingTid);
+      $('#c-join-status').innerHTML='전광판과의 연결이 끊어졌습니다.<br>QR을 다시 스캔해 주세요.';show('c-join')});
     c.on('error',()=>{clearTimeout(to);$('#c-join-status').textContent='연결 실패 — QR을 다시 스캔해 주세요.'});
   });
   peer.on('error',()=>{clearTimeout(to);$('#c-join-status').textContent='연결 실패 — QR을 다시 스캔해 주세요.'});
@@ -1008,11 +1042,19 @@ const C={
   if(!m||typeof m!=='object')return;
   switch(m.t){
    case 'full':{$('#c-join-status').innerHTML='이미 두 명이 대결 중입니다.<br>다음 경기를 기다려 주세요!';show('c-join');break}
+   case 'idlekick':{ // 30초 무반응/신호 두절 → 전광판이 슬롯 해제
+     clearInterval(this.pingTid);try{this.conn&&this.conn.close()}catch(e){}
+     $('#c-join-status').innerHTML='⏱ 30초 동안 입력이 없어 연결이 종료되었습니다.<br>다시 도전하려면 QR을 스캔하거나 아래 버튼을 누르세요!';
+     const sp=document.querySelector('#c-join .spinner');if(sp)sp.style.display='none';
+     show('c-join');break}
    case 'slot':{
      this.p=m.p;this.oppTeam=m.opp;this.soloOk=!!m.solo;this.myTeam=null;this.picked=false;
      $('#c-slot-label').textContent='PLAYER '+(m.p+1);
      $('#c-btn-solo').style.display=m.solo?'':'none';$('#c-btn-solo').disabled=true;
-     $('#c-team-status').textContent=m.solo?'국가를 고르고, 상대가 없으면 컴퓨터와 대결하세요.':'국가를 고르면 자동으로 경기가 시작됩니다.';
+     const rec=REC.get();
+     $('#c-team-status').innerHTML=(m.solo?'국가를 고르고, 상대가 없으면 컴퓨터와 대결하세요.':'국가를 고르면 자동으로 경기가 시작됩니다.')
+       +' <b style="color:var(--gold)">30초 안에 선택!</b>'
+       +(rec.s>=2?`<br>🔥 이 폰으로 현재 <b style="color:var(--gold)">${rec.s}연승 중</b> — 이어가세요!`:'');
      this.refreshGrid();show('c-team');break}
    case 'opp':{this.oppTeam=m.c;this.refreshGrid();
      const t=TEAMS.find(x=>x.c===m.c);
@@ -1064,6 +1106,13 @@ const C={
      $('#c-end-title').textContent=m.win?'YOU WIN! 🏆':'YOU LOSE';
      $('#c-end-title').style.color=m.win?'var(--gold)':'var(--dim)';
      $('#c-end-sub').textContent=`${m.s[0]} : ${m.s[1]} · ${m.wn} 승리`;
+     // 단말기 기준 전적 갱신(연승 · 통산 승률)
+     const rec=REC.get();rec.g++;
+     if(m.win){rec.s++;rec.w++}else rec.s=0;
+     REC.set(rec);
+     $('#c-streak').textContent=
+       (m.win?(rec.s>=2?`🔥 ${rec.s}연승 중!`:'첫 승! 연승 도전 시작 🔥'):'연승 마감… 다시 도전!')
+       +` · 이 폰 통산 ${rec.w}승 ${rec.g-rec.w}패 (승률 ${Math.round(rec.w/rec.g*100)}%)`;
      $('#c-btn-again').disabled=false;$('#c-btn-home').disabled=false;
      if(m.win&&navigator.vibrate)navigator.vibrate([80,60,80,60,160]);
      show('c-end');break}
