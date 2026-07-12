@@ -158,6 +158,7 @@ button{font-family:inherit;cursor:pointer;border:none}
 }
 .result-banner.goal{color:var(--gold);-webkit-text-stroke:3px #8a6a17}
 .result-banner.save{color:#8fd4ff;-webkit-text-stroke:3px #1c5e8c}
+.result-banner.miss{color:#ff9273;-webkit-text-stroke:3px #8c2f1c}
 .tv-count{
   position:absolute;inset:0;display:none;align-items:center;justify-content:center;z-index:8;
   font-family:'Black Han Sans',sans-serif;font-size:clamp(140px,22vw,380px);color:#fff;
@@ -247,7 +248,25 @@ button{font-family:inherit;cursor:pointer;border:none}
 .goalpad.locked .padbtn{opacity:.35;pointer-events:none}
 .goalpad.locked .padbtn.sel{opacity:1}
 .c-feed{min-height:26px;text-align:center;margin-top:14px;font-weight:900;font-size:16px}
-.c-feed.goal{color:var(--gold)}.c-feed.save{color:#8fd4ff}.c-feed.dim{color:var(--dim);font-weight:500;font-size:13.5px}
+.c-feed.goal{color:var(--gold)}.c-feed.save{color:#8fd4ff}.c-feed.miss{color:#ff9273}
+.c-feed.dim{color:var(--dim);font-weight:500;font-size:13.5px}
+
+/* 킥 파워바 */
+.c-power{margin-top:14px;display:none}
+.c-power.on{display:block}
+.pw-track{position:relative;height:32px;border-radius:99px;background:#0a1322;border:1px solid var(--line);overflow:hidden}
+.pw-ok{position:absolute;top:0;bottom:0;left:22%;width:66%;background:rgba(65,217,124,.14);
+  border-left:2px solid rgba(90,167,232,.7);border-right:2px solid rgba(225,72,72,.8)}
+.pw-track i{position:absolute;left:0;top:0;bottom:0;width:0%;background:#41d97c;border-radius:99px 0 0 99px}
+.pw-num{position:absolute;right:12px;top:50%;transform:translateY(-50%);font-family:'Oswald';font-weight:700;
+  font-size:16px;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.85)}
+.pw-btn{width:100%;margin-top:10px;border-radius:14px;font-weight:900;font-size:17px;padding:18px;color:#fff;
+  background:linear-gradient(180deg,#e86060,#c22b36);box-shadow:0 8px 22px rgba(226,72,72,.3);
+  touch-action:none;user-select:none;-webkit-user-select:none;transition:transform .08s}
+.pw-btn:active{transform:scale(.97)}
+.pw-btn:disabled{opacity:.45;pointer-events:none}
+.pw-hint{margin-top:8px;text-align:center;font-size:11.5px;color:var(--dim);line-height:1.65}
+.pw-hint b{color:var(--ink)}
 .c-minibug{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:auto;padding-top:18px;color:var(--dim);font-size:13px;font-weight:700}
 .c-minibug img{width:24px;border-radius:3px;vertical-align:-4px}
 .c-minibug .s{font-family:'Oswald';font-size:19px;color:var(--gold)}
@@ -271,7 +290,7 @@ button{font-family:inherit;cursor:pointer;border:none}
       <div class="lb-steps">
         <div class="lb-step"><span class="no">01</span><p><b>QR 스캔</b><br>휴대폰 카메라로<br>오른쪽 QR을 찍습니다</p></div>
         <div class="lb-step"><span class="no">02</span><p><b>국가 선택</b><br>휴대폰에서 나의<br>대표팀을 고릅니다</p></div>
-        <div class="lb-step"><span class="no">03</span><p><b>3초 승부</b><br>제한시간 3초 안에<br>슛 · 선방을 입력합니다</p></div>
+        <div class="lb-step"><span class="no">03</span><p><b>5초 2단계 킥</b><br>방향 선택 → 파워바 충전!<br>파워를 못 정하면 킥 실패</p></div>
       </div>
       <div class="slots">
         <div class="slot" id="slot1"><span class="tag">P1</span><span id="slot1-txt">접속 대기 중…</span></div>
@@ -306,7 +325,7 @@ button{font-family:inherit;cursor:pointer;border:none}
     <div class="pick-ring">
       <svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="44" fill="none" stroke="#22314e" stroke-width="9"/>
       <circle id="ring-fg" cx="50" cy="50" r="44" fill="none" stroke="#e9c25b" stroke-width="9" stroke-linecap="round" stroke-dasharray="276.5" stroke-dashoffset="0"/></svg>
-      <div class="num" id="ring-num">3</div>
+      <div class="num" id="ring-num">5</div>
     </div>
     <div class="pick-chips">
       <div class="chip" id="chip-k"><span class="cdot"></span><span id="chip-k-txt">키커 선택 중</span></div>
@@ -386,6 +405,11 @@ button{font-family:inherit;cursor:pointer;border:none}
         <button class="padbtn span2" data-z="R">오른쪽 →<small>RIGHT</small></button>
       </div>
     </div>
+    <div class="c-power" id="c-power">
+      <div class="pw-track"><div class="pw-ok"></div><i id="pw-fill"></i><span class="pw-num" id="pw-num">0</span></div>
+      <button class="pw-btn" id="pw-btn">⚽ 꾹 눌러 파워 충전 — 손을 떼면 슛!</button>
+      <p class="pw-hint">초록 구간이 적정 파워 · 너무 강하면 <b>골대 위로!</b> · 너무 약하면 <b>키퍼가 잡아요</b><br>시간 안에 파워를 정하지 못하면 <b>킥 실패</b></p>
+    </div>
     <div class="c-feed dim" id="c-feed">전광판을 확인하세요</div>
     <div class="c-minibug">
       <span><img id="c-mf1" alt=""> <span id="c-mn1"></span></span>
@@ -428,7 +452,8 @@ const TEAMS=[
 ];
 const flag=c=>`https://flagcdn.com/w160/${c}.png`;
 const ZK=['TL','TR','L','C','R'];
-const PICK_SEC=3;
+const PICK_SEC=5;               // 킥 준비 시간: 방향+파워 2단계를 5초 안에
+const PW_MIN=22, PW_MAX=88;     // 적정 파워 구간(미만=키퍼 캐치, 초과=골대 위로)
 const rz=()=>ZK[Math.random()*5|0];
 const sum=a=>a.reduce((x,y)=>x+(y?1:0),0);
 const clamp=(v,a,b)=>v<a?a:v>b?b:v;
@@ -573,7 +598,14 @@ const TV={
    case 'pick':{
      if(this.over||m.turn!==this.turn)return;
      const role=(this.turn%2===idx)?'k':'g';
-     if(this.picks[role]==null){this.picks[role]=m.z;this.chip(role,true);this.tryResolve()}
+     if(this.picks[role]!=null)break;
+     if(role==='k')this.picks.k=m.fail?{fail:true}:{z:ZK.includes(m.z)?m.z:rz(),pw:clamp(Math.round(+m.pw||0),0,100)};
+     else this.picks.g={z:ZK.includes(m.z)?m.z:rz()};
+     this.chip(role,true);this.tryResolve();
+     break;}
+   case 'kdir':{ // 키커가 방향을 정하고 파워 차징 단계로 진입
+     if(this.over||m.turn!==this.turn||(this.turn%2)!==idx||this.picks.k!=null)break;
+     $('#chip-k-txt').textContent=this.teams[this.kickerIdx()].a+' 파워 차징 중';
      break;}
    case 'again':{ if(this.over&&this.teams[0]&&this.teams[1]&&$('#tv-end').classList.contains('on')){
      clearTimeout(this.endTid);this.startMatch(this.mode)} break;}
@@ -630,11 +662,12 @@ const TV={
   [0,1].forEach(i=>{ if(!this.isHuman(i)){
      clearTimeout(this.cpuTid[i]);
      this.cpuTid[i]=setTimeout(()=>{const r=(i===ki)?'k':'g';
-       if(this.picks[r]==null){this.picks[r]=rz();this.chip(r,true);this.tryResolve()}},500+Math.random()*1800);
+       if(this.picks[r]==null){this.picks[r]=this.cpuPick(r);this.chip(r,true);this.tryResolve()}},900+Math.random()*2600);
   }});
   // HUD 링
-  $('#chip-k-txt').textContent=this.teams[ki].a+' 키커 선택 중';
-  $('#chip-g-txt').textContent=this.teams[gi].a+' 키퍼 선택 중';
+  this._ab={k:this.teams[ki].a,g:this.teams[gi].a};
+  $('#chip-k-txt').textContent=this.teams[ki].a+' 방향·파워 선택 중';
+  $('#chip-g-txt').textContent=this.teams[gi].a+' 다이브 선택 중';
   this.chip('k',false);this.chip('g',false);
   $('#pick-hud').classList.add('on');
   const fg=$('#ring-fg'),num=$('#ring-num'),t0=Date.now(),total=PICK_SEC*1000;
@@ -650,17 +683,23 @@ const TV={
     if(left<=0)clearInterval(this.ringTid);
   },50);
   clearTimeout(this.pickTid);
-  this.pickTid=setTimeout(()=>{ // 마감 + 유예
-    if(this.picks.k==null){this.picks.k=rz();this.chip('k',true)}
-    if(this.picks.g==null){this.picks.g=rz();this.chip('g',true)}
+  this.pickTid=setTimeout(()=>{ // 마감 + 유예: 파워 미입력 키커는 킥 실패, 키퍼는 랜덤 다이브
+    if(this.picks.k==null){this.picks.k={fail:true};this.chip('k',true)}
+    if(this.picks.g==null){this.picks.g={z:rz()};this.chip('g',true)}
     this.tryResolve();
   },PICK_SEC*1000+450);
  },
  isHuman(i){ return this.mode==='pvp' ? true : (this.mode==='solo' ? i===0 : false); },
+ cpuPick(r){
+  if(r==='g')return {z:rz()};
+  const roll=Math.random();                       // CPU 키커도 가끔 파워 실수를 한다
+  const pw=roll<.08?90+Math.random()*10 : roll<.15?8+Math.random()*12 : 32+Math.random()*50;
+  return {z:rz(),pw:Math.round(pw)};
+ },
  chip(role,done){
   const el=$(role==='k'?'#chip-k':'#chip-g');
   el.classList.toggle('done',done);el.classList.toggle('wait',!done);
-  if(done){const tx=$(role==='k'?'#chip-k-txt':'#chip-g-txt');tx.textContent=tx.textContent.replace('선택 중','입력 완료');}
+  if(done)$(role==='k'?'#chip-k-txt':'#chip-g-txt').textContent=((this._ab&&this._ab[role])||'')+' 입력 완료';
  },
  tryResolve(){
   if(this.over)return;
@@ -668,11 +707,18 @@ const TV={
   clearTimeout(this.pickTid);clearInterval(this.ringTid);
   [0,1].forEach(i=>clearTimeout(this.cpuTid[i]));
   $('#pick-hud').classList.remove('on');
-  const ki=this.kickerIdx(),kick=this.picks.k,dive=this.picks.g,goal=kick!==dive;
+  const ki=this.kickerIdx(),kp=this.picks.k,gp=this.picks.g;
+  // 결과 판정: 파워 미입력=실패 · 오버파워=골대 위 · 저파워=키퍼 캐치 · 적정=방향 승부
+  let outcome;
+  if(kp.fail)outcome='fail';
+  else if(kp.pw>PW_MAX)outcome='over';
+  else if(kp.pw<PW_MIN)outcome='weak';
+  else outcome=kp.z!==gp.z?'goal':'save';
+  const goal=outcome==='goal', kick=kp.z||null, dive=gp.z, pw=kp.pw||0;
   this.kicks[ki]=this.kicks[ki].concat(goal);
   const resTurn=this.turn;
-  GFX.playTurn({kick,dive,goal,kickerTeam:this.teams[ki],onImpact:()=>{
-    [0,1].forEach(i=>{ if(this.isHuman(i))this.sendTo(i,{t:'result',goal,youKicked:i===ki,kick,dive,
+  GFX.playTurn({kick,dive:outcome==='weak'?kick:dive,outcome,goal,pw,kickerTeam:this.teams[ki],onImpact:()=>{
+    [0,1].forEach(i=>{ if(this.isHuman(i))this.sendTo(i,{t:'result',goal,outcome,pw,youKicked:i===ki,kick,dive,
       s:[sum(this.kicks[0]),sum(this.kicks[1])]}); });
     this.updateBug();
   },onDone:()=>{
@@ -728,6 +774,7 @@ const TV={
 ============================================================ */
 const C={
  conn:null,p:0,myTeam:null,oppTeam:null,turn:0,picked:false,soloOk:false,timerId:null,
+ role:null,dirZ:null,charging:false,pw:0,chargeT0:0,chargeRaf:null,
  init(){
   show('c-join');
   const code=PARAMS.get('room');
@@ -761,12 +808,36 @@ const C={
     $('#c-team-status').textContent='컴퓨터와의 대결을 준비하는 중…'};
   $('#padgrid').addEventListener('click',e=>{
     const b=e.target.closest('.padbtn');if(!b||this.picked)return;
+    if(this.role==='kick'){
+      if(this.dirZ)return;                       // 1단계: 방향 선택 → 2단계 파워로
+      this.dirZ=b.dataset.z;
+      b.classList.add('sel');$('#goalpad').classList.add('locked');
+      $('#c-power').classList.add('on');
+      this.send({t:'kdir',turn:this.turn});
+      $('#c-role-txt').textContent='② 파워를 정하세요!';
+      this.feed('버튼을 꾹! 손을 떼는 순간 슛!','dim');
+      if(navigator.vibrate)navigator.vibrate(25);
+      return;
+    }
     this.picked=true;clearInterval(this.timerId);
     b.classList.add('sel');$('#goalpad').classList.add('locked');
     this.send({t:'pick',turn:this.turn,z:b.dataset.z});
     this.feed('입력 완료! 전광판을 보세요 👀','dim');
     if(navigator.vibrate)navigator.vibrate(35);
   });
+  // 파워바: 누르면 충전 시작(0→100 왕복), 떼면 그 파워로 슛
+  const pwBtn=$('#pw-btn');
+  const pwStart=e=>{e.preventDefault();
+    if(this.picked||!this.dirZ||this.charging||this.role!=='kick')return;
+    this.charging=true;this.chargeT0=performance.now();this.chargeLoop();
+    if(navigator.vibrate)navigator.vibrate(15);
+  };
+  const pwEnd=e=>{if(!this.charging)return;e&&e.preventDefault();this.commitPower()};
+  pwBtn.addEventListener('pointerdown',pwStart);
+  window.addEventListener('pointerup',pwEnd);
+  window.addEventListener('pointercancel',pwEnd);
+  pwBtn.addEventListener('touchstart',e=>e.preventDefault(),{passive:false});
+  pwBtn.addEventListener('contextmenu',e=>e.preventDefault());
   $('#c-btn-again').onclick=()=>{this.send({t:'again'});$('#c-btn-again').disabled=true;
     $('#c-end-sub').textContent='재경기를 준비하는 중…'};
   $('#c-btn-quit').onclick=()=>{this.send({t:'quit'});try{this.conn.close()}catch(e){};
@@ -780,6 +851,34 @@ const C={
   });
  },
  feed(txt,cls){const f=$('#c-feed');f.textContent=txt;f.className='c-feed '+(cls||'')},
+ chargeLoop(){
+  if(!this.charging)return;
+  const el=performance.now()-this.chargeT0;
+  const ph=(el/1150)%2;                          // 1.15초에 0→100, 이후 왕복
+  this.pw=Math.round((ph<1?ph:2-ph)*100);
+  this.drawPw();
+  this.chargeRaf=requestAnimationFrame(()=>this.chargeLoop());
+ },
+ drawPw(){
+  const f=$('#pw-fill');f.style.width=this.pw+'%';
+  f.style.background=this.pw>PW_MAX?'#e14848':this.pw<PW_MIN?'#e0a33c':'#41d97c';
+  $('#pw-num').textContent=this.pw;
+ },
+ commitPower(){
+  this.charging=false;cancelAnimationFrame(this.chargeRaf);
+  if(this.picked)return;
+  this.picked=true;clearInterval(this.timerId);
+  this.drawPw();$('#pw-btn').disabled=true;
+  this.send({t:'pick',turn:this.turn,z:this.dirZ,pw:this.pw});
+  const warn=this.pw>PW_MAX?' … 너무 강한데?!':this.pw<PW_MIN?' … 너무 약한데?!':'';
+  this.feed(`파워 ${this.pw}% 슛! 전광판을 보세요 👀${warn}`,'dim');
+  if(navigator.vibrate)navigator.vibrate(45);
+ },
+ resetKickUI(){
+  this.dirZ=null;this.charging=false;this.pw=0;cancelAnimationFrame(this.chargeRaf);
+  $('#c-power').classList.remove('on');$('#pw-btn').disabled=false;
+  $('#pw-fill').style.width='0%';$('#pw-num').textContent='0';
+ },
  onMsg(m){
   if(!m||typeof m!=='object')return;
   switch(m.t){
@@ -803,25 +902,33 @@ const C={
      $('#c-btn-again').disabled=false;
      this.feed('경기 시작! 전광판을 보세요','dim');
      $('#goalpad').classList.add('locked');$$('.padbtn').forEach(b=>b.classList.remove('sel'));
+     this.resetKickUI();
      $('#c-role-tag').textContent='KICK-OFF';$('#c-role-txt').textContent='잠시 후 시작!';
      $('#c-timer').style.width='100%';
      show('c-play');break}
    case 'phase':{
-     this.turn=m.turn;this.picked=false;
+     this.turn=m.turn;this.picked=false;this.role=m.role;this.resetKickUI();
      const kick=m.role==='kick';
      const role=$('#c-role');role.classList.toggle('keep',!kick);
      $('#c-role-tag').textContent=(m.round>5?'SUDDEN DEATH · ':'ROUND '+m.round+' · ')+(kick?'KICKER':'GOALKEEPER');
-     $('#c-role-txt').textContent=kick?'⚽ 슛 위치를 터치!':'🧤 막을 곳을 터치!';
+     $('#c-role-txt').textContent=kick?'⚽ ① 방향 → ② 파워!':'🧤 막을 곳을 터치!';
      $$('.padbtn').forEach(b=>b.classList.remove('sel'));
      $('#goalpad').classList.remove('locked');
-     this.feed(kick?'3초 안에 다섯 구역 중 한 곳!':'상대의 슛을 예측하세요!','dim');
+     this.feed(kick?'5초 안에 방향 선택 → 파워 충전!':'상대의 슛을 예측하세요!','dim');
      if(navigator.vibrate)navigator.vibrate([30,40,30]);
-     this.runTimer(m.sec||3);break}
+     this.runTimer(m.sec||PICK_SEC);break}
    case 'result':{
      $('#c-ms1').textContent=m.s[0];$('#c-ms2').textContent=m.s[1];
      const good=(m.youKicked&&m.goal)||(!m.youKicked&&!m.goal);
-     if(m.goal)this.feed(m.youKicked?'⚽ GOAL! 득점 성공!':'😱 실점… 다음 기회에!','goal');
-     else this.feed(m.youKicked?'🧤 막혔습니다!':'🧤 SAVE! 선방 성공!','save');
+     const oc=m.outcome||(m.goal?'goal':'save');
+     const MSG={
+      goal:['⚽ GOAL! 득점 성공!','😱 실점… 다음 기회에!','goal'],
+      save:['🧤 막혔습니다!','🧤 SAVE! 선방 성공!','save'],
+      weak:['🐌 너무 약한 킥! 키퍼가 잡았어요','🧤 약한 슛 — 가볍게 캐치!','save'],
+      over:['🚀 파워 오버! 골대 위로 날아갔어요','😅 상대 슛이 하늘로!','miss'],
+      fail:['⏱ 파워 미입력 — 킥 실패!','😌 상대가 킥에 실패했어요','miss']
+     }[oc];
+     this.feed(m.youKicked?MSG[0]:MSG[1],MSG[2]);
      if(navigator.vibrate)navigator.vibrate(good?[60,50,120]:60);
      break}
    case 'end':{
@@ -842,12 +949,23 @@ const C={
     bar.style.width=(r*100)+'%';
     if(left<1200)bar.classList.add('hurry');
     if(left<=0){clearInterval(this.timerId);
-      if(!this.picked){ // 자동 랜덤
-        this.picked=true;const z=rz();
-        const b=$$('.padbtn').find(x=>x.dataset.z===z);if(b)b.classList.add('sel');
-        $('#goalpad').classList.add('locked');
-        this.send({t:'pick',turn:this.turn,z});
-        this.feed('시간 초과 — 자동 입력되었습니다','dim');
+      if(!this.picked){
+        if(this.role==='kick'){
+          if(this.charging){this.commitPower()}   // 마감 순간까지 누르고 있었다면 그 파워로 슛
+          else{                                    // 파워 미선택 → 킥 실패
+            this.picked=true;this.charging=false;cancelAnimationFrame(this.chargeRaf);
+            $('#goalpad').classList.add('locked');$('#pw-btn').disabled=true;
+            this.send({t:'pick',turn:this.turn,fail:true});
+            this.feed('⏱ 시간 초과 — 파워 미입력, 킥 실패!','miss');
+            if(navigator.vibrate)navigator.vibrate(80);
+          }
+        }else{ // 키퍼는 자동 랜덤 다이브
+          this.picked=true;const z=rz();
+          const b=$$('.padbtn').find(x=>x.dataset.z===z);if(b)b.classList.add('sel');
+          $('#goalpad').classList.add('locked');
+          this.send({t:'pick',turn:this.turn,z});
+          this.feed('시간 초과 — 자동 입력되었습니다','dim');
+        }
       }}
   },60);
  }
@@ -877,7 +995,7 @@ const GFX=(()=>{
  const cv=document.getElementById('pitch'),ctx=cv.getContext('2d');
  let W=0,H=0,dpr=1,bg=null,vig=null,noiseP=null;
  let GL,GT,GX,GW,GH,SPOT,KH,GKH;
- let teams=[null,null],kickerIdx=0,anim=null,ripple=null,flash=0,shake=0,sparks=[],trail=[];
+ let teams=[null,null],kickerIdx=0,anim=null,ripple=null,flash=0,shake=0,sparks=[],trail=[],puffs=[];
  const D2R=Math.PI/180, sin=Math.sin, cos=Math.cos;
 
  function zonePt(z){
@@ -983,9 +1101,33 @@ const GFX=(()=>{
   c.beginPath();                                                        // 페널티 박스 측선
   c.moveTo(GX-GW*.42,GL);c.lineTo(GX-GW*.75,H*.9);
   c.moveTo(GX+GW+GW*.42,GL);c.lineTo(GX+GW+GW*.75,H*.9);c.stroke();
+  // 잔디 세로결(원근 팬 모잉 패턴)
+  c.save();c.beginPath();c.rect(0,H*.566,W,H-H*.566);c.clip();
+  c.fillStyle='rgba(0,0,0,.05)';
+  for(let s=-8;s<8;s+=2){
+    const x1=W/2+s*W*.078, x2=W/2+(s+1)*W*.078;         // 화면 하단 폭
+    const t1=W/2+(x1-W/2)*.2, t2=W/2+(x2-W/2)*.2;       // 골라인 쪽 수렴
+    c.beginPath();c.moveTo(t1,H*.566);c.lineTo(t2,H*.566);c.lineTo(x2,H);c.lineTo(x1,H);c.closePath();c.fill();
+  }
+  c.restore();
+  // 페널티 아크
+  c.strokeStyle='rgba(250,252,255,.8)';c.lineWidth=Math.max(2.2,H*.0042);
+  c.beginPath();c.ellipse(SPOT.x,SPOT.y+H*.012,W*.118,H*.05,0,Math.PI*.14,Math.PI*.86);c.stroke();
   // 페널티 스팟
   c.fillStyle='rgba(255,255,255,.92)';
   c.beginPath();c.ellipse(SPOT.x,SPOT.y+H*.012,W*.007,W*.0028,0,0,7);c.fill();
+  // 골라인 밖 포토그래퍼 열
+  const vests=['#26354f','#c9722e','#54303a','#2c4a3a','#3a3a52','#c9722e'];
+  for(let i=0;i<26;i++){
+    const side=i%2?1:-1;
+    const px=W/2+side*(GW*.6+Math.random()*W*.17);
+    if(px<W*.015||px>W*.985)continue;
+    const py=H*.5735,s=H*.017;
+    c.fillStyle=vests[i%vests.length];
+    c.fillRect(px-s*.5,py-s*1.25,s,s*1.25);                                   // 앉은 몸
+    c.fillStyle='rgba(230,205,180,.9)';c.beginPath();c.arc(px,py-s*1.55,s*.36,0,7);c.fill(); // 머리
+    c.fillStyle='#0c0f16';c.fillRect(px+s*.15,py-s*1.42,s*.6,s*.34);          // 카메라
+  }
   // 골대 그림자
   c.fillStyle='rgba(6,20,12,.30)';
   c.beginPath();c.ellipse(W/2,GL+H*.012,GW*.55,H*.014,0,0,7);c.fill();
@@ -1095,7 +1237,7 @@ const GFX=(()=>{
  function drawGK(now){
   const h=GKH, cxg=GX+GW/2;
   let x=cxg,y=GL-1,rot=0,p=0,zone=null,phase='idle',goal=false;
-  if(anim){
+  if(anim&&anim.outcome!=='fail'){ // 킥 실패 시 키퍼는 다이브하지 않는다
     p=clamp((anim.t-anim.T.dive)/(anim.T.impact-anim.T.dive),0,1);
     zone=anim.dive;goal=anim.goal;
     if(anim.t>=anim.T.dive)phase='dive';
@@ -1173,8 +1315,8 @@ const GFX=(()=>{
   ctx.fillStyle='rgba(30,20,12,.5)';                         // 눈 음영
   ctx.fillRect(-h*.05,shY-h*.125,h*.033,h*.014);ctx.fillRect(h*.017,shY-h*.125,h*.033,h*.014);
   ctx.restore();
-  // 선방 시 공을 장갑 위치에
-  if(anim&&anim.done&&!anim.goal){
+  // 선방/캐치 시 공을 장갑 위치에
+  if(anim&&anim.done&&(anim.outcome==='save'||anim.outcome==='weak')){
     anim.ballHold={x:x+sin(rot)*-h*.1+( (zone==='TL'||zone==='L')?-1:(zone==='C'?0:1))*h*.34*(zone==='C'?0:1),
                    y:y-h*(zone==='C'?1.05:.62)};
   }
@@ -1276,19 +1418,32 @@ const GFX=(()=>{
   if(anim){
     const T=anim.T,t=anim.t;
     if(t>=T.kick){
-      const p=clamp((t-T.kick)/(T.impact-T.kick),0,1),pe=ease(p);
+      const p=clamp((t-T.kick)/(T.impact-T.kick),0,1);
       const tp=anim.goal?anim.target:anim.saveEnd;
-      // 곡선 비행(베지어) + 포물선
-      const cxp=lerp(SPOT.x,tp.x,.5)+anim.curve, cyp=lerp(SPOT.y,tp.y,.42);
-      bx=(1-pe)*(1-pe)*SPOT.x+2*(1-pe)*pe*cxp+pe*pe*tp.x;
-      by=(1-pe)*(1-pe)*SPOT.y+2*(1-pe)*pe*cyp+pe*pe*tp.y - sin(pe*Math.PI)*H*.05;
-      r=lerp(W*.014,W*.0058,pe);fly=p<1?1:0;
-      if(p>=1){bx=tp.x;by=tp.y;r=W*.0058}
-      if(anim.done&&!anim.goal&&anim.ballHold){bx=anim.ballHold.x;by=anim.ballHold.y;r=W*.006}
-      if(fly&&(anim.t-(anim.lastTrail||0))>16){trail.push({x:bx,y:by,r});anim.lastTrail=anim.t;if(trail.length>9)trail.shift()}
+      if(anim.outcome==='fail'){ // 빗맞은 공: 땅볼로 데굴데굴 감속
+        const pe=1-Math.pow(1-p,2.2);
+        bx=lerp(SPOT.x,tp.x,pe);by=lerp(SPOT.y,tp.y,pe);
+        r=lerp(W*.014,W*.0105,pe);fly=0;
+      }else{
+        const pe=ease(p);
+        // 곡선 비행(베지어) + 포물선 — 파워/결과에 따라 탄도가 달라진다
+        const arc=anim.outcome==='over'?H*.085:anim.outcome==='weak'?H*.02:H*.05*(0.55+anim.pw/220);
+        const cxp=lerp(SPOT.x,tp.x,.5)+anim.curve, cyp=lerp(SPOT.y,tp.y,.42);
+        bx=(1-pe)*(1-pe)*SPOT.x+2*(1-pe)*pe*cxp+pe*pe*tp.x;
+        by=(1-pe)*(1-pe)*SPOT.y+2*(1-pe)*pe*cyp+pe*pe*tp.y - sin(pe*Math.PI)*arc;
+        r=lerp(W*.014,W*.0058,pe);fly=p<1?1:0;
+        if(p>=1){bx=tp.x;by=tp.y;r=W*.0058}
+        if(anim.done&&anim.ballHold){bx=anim.ballHold.x;by=anim.ballHold.y;r=W*.006}
+        const tl=Math.max(4,Math.round(4+anim.pw*.09)); // 강슛일수록 긴 잔상
+        if(fly&&(anim.t-(anim.lastTrail||0))>14){trail.push({x:bx,y:by,r});anim.lastTrail=anim.t;if(trail.length>tl)trail.shift()}
+      }
     }
   }
-  // 트레일
+  // 트레일(모션 스트릭 + 잔상)
+  if(trail.length>1){
+    ctx.strokeStyle='rgba(255,255,255,.22)';ctx.lineWidth=r*.85;ctx.lineCap='round';
+    ctx.beginPath();trail.forEach((t,i)=>i?ctx.lineTo(t.x,t.y):ctx.moveTo(t.x,t.y));ctx.stroke();
+  }
   trail.forEach((t,i)=>{ctx.fillStyle=`rgba(255,255,255,${.05+i/trail.length*.14})`;
     ctx.beginPath();ctx.arc(t.x,t.y,t.r*(0.5+i/trail.length*.5),0,7);ctx.fill()});
   // 그림자
@@ -1321,6 +1476,18 @@ const GFX=(()=>{
   for(let i=0;i<80;i++)sparks.push({x:Math.random()*W,y:H*.05+Math.random()*H*.46,
     t:now+Math.random()*900,d:120+Math.random()*180});
  }
+ /* ---------- 킥 순간 잔디 파편 ---------- */
+ function kickPuff(){
+  const now=performance.now(),n=8+((anim?anim.pw:50)/10|0);
+  for(let i=0;i<n;i++)puffs.push({x:SPOT.x+(Math.random()-.5)*W*.012,y:SPOT.y,
+    vx:(Math.random()-.5)*2.2,vy:-(.5+Math.random()*1.6),r:1.5+Math.random()*2.5,t:now});
+ }
+ function drawPuffs(now){
+  puffs=puffs.filter(p=>now-p.t<460);
+  for(const p of puffs){const q=(now-p.t)/460;
+    ctx.fillStyle=`rgba(198,226,190,${(1-q)*.55})`;
+    ctx.beginPath();ctx.arc(p.x+p.vx*q*34,p.y+p.vy*q*30+q*q*22,p.r*(1+q*1.4),0,7);ctx.fill()}
+ }
 
  /* ---------- 프레임 루프 ---------- */
  function frame(now){
@@ -1330,13 +1497,16 @@ const GFX=(()=>{
   if(anim){
     anim.t=now-anim.t0;
     const T=anim.T;
-    if(anim.t>=T.kick&&!anim.kicked){anim.kicked=true;AUD.kick()}
+    if(anim.t>=T.kick&&!anim.kicked){anim.kicked=true;AUD.kick();kickPuff()}
     if(anim.t>=T.impact&&!anim.done){
       anim.done=true;
       if(anim.goal){
-        ripple={x:anim.netPt.x,y:anim.netPt.y,t:now};flash=1;shake=1;
+        ripple={x:anim.netPt.x,y:anim.netPt.y,t:now};flash=1;shake=.7+anim.pw/250;
         AUD.roar();sparkBurst();banner('GOAL!','goal');
-      }else{AUD.thud();AUD.groan();banner('SAVE!','save')}
+      }else if(anim.outcome==='over'){AUD.groan();banner('OVER!','miss')}
+      else if(anim.outcome==='fail'){AUD.groan();banner('MISS!','miss')}
+      else if(anim.outcome==='weak'){AUD.thud();AUD.groan();banner('CAUGHT!','save')}
+      else{AUD.thud();AUD.groan();banner('SAVE!','save')}
       anim.onImpact&&anim.onImpact();
     }
     if(anim.t>=T.end){const cb=anim.onDone;anim=null;ripple=null;trail=[];cb&&cb()}
@@ -1349,7 +1519,7 @@ const GFX=(()=>{
   ctx.drawImage(bg,0,0,W,H);
   twinkle(now);led(now);drawSparks(now);
   goalNet(now);
-  drawGK(now);drawKicker(now);drawBall(now);
+  drawGK(now);drawKicker(now);drawPuffs(now);drawBall(now);
   if(flash>0){ctx.fillStyle=`rgba(255,242,200,${flash*.32})`;ctx.fillRect(-30,-30,W+60,H+60)}
   ctx.drawImage(vig,0,0,W,H);
   ctx.restore();
@@ -1363,16 +1533,30 @@ const GFX=(()=>{
  if(!IS_CTRL){resize();requestAnimationFrame(frame)}
 
  return{
-  reset(){anim=null;ripple=null;flash=0;shake=0;sparks=[];trail=[];resize()},
+  reset(){anim=null;ripple=null;flash=0;shake=0;sparks=[];trail=[];puffs=[];resize()},
   setTeams(a,b,ki){teams=[a,b];kickerIdx=ki},
-  playTurn({kick,dive,goal,kickerTeam,onImpact,onDone}){
-   const target=zonePt(kick);
+  playTurn({kick,dive,outcome,goal,pw,kickerTeam,onImpact,onDone}){
+   outcome=outcome||(goal?'goal':'save');pw=pw||0;
+   // 파워가 낮으면 조심스러운 슬로 런업, 강하면 전력 질주
+   const runup=outcome==='fail'?980:lerp(1180,620,pw/100);
+   let target,flight;
+   if(outcome==='over'){        // 오버파워: 골대 위로 관중석행
+     const zx=kick?zonePt(kick).x:GX+GW/2;
+     target={x:zx+(zx<W/2?-1:1)*GW*.07,y:GT-GH*.82};flight=640;
+   }else if(outcome==='fail'){  // 파워 미입력: 빗맞은 공이 힘없이 굴러감
+     target={x:SPOT.x+(Math.random()<.5?-1:1)*GW*.34,y:lerp(SPOT.y,GL,.52)};flight=1150;
+   }else{
+     target=zonePt(kick);
+     flight=outcome==='weak'?1280:lerp(1000,320,pw/100); // 파워=구속
+   }
    const netPt={x:lerp(target.x,GX+GW/2,.18),y:lerp(target.y,GT+GH*.4,.15)};
    let saveEnd=target;
-   const T={plant:760,strike:880,kick:880,dive:950,impact:1480,end:3050};
+   const kickAt=runup+120;
+   const T={plant:runup,strike:kickAt,kick:kickAt,dive:kickAt+Math.min(220,flight*.3),
+            impact:kickAt+flight,end:kickAt+flight+1570};
    trail=[];
-   anim={t0:performance.now(),t:0,T,kick,dive,goal,kickerTeam,target,netPt,saveEnd,
-     curve:(Math.random()-.5)*W*.05,
+   anim={t0:performance.now(),t:0,T,kick,dive,outcome,goal,pw,kickerTeam,target,netPt,saveEnd,
+     curve:(Math.random()-.5)*W*.05*(outcome==='fail'?0:1),
      num:['7','9','10','11','17'][kickerTeam.n.length%5],
      kicked:false,done:false,onImpact,onDone,ballHold:null};
   }
