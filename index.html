@@ -207,12 +207,18 @@ button{font-family:inherit;cursor:pointer;border:none}
 @keyframes spin{to{transform:rotate(360deg)}}
 .c-status{text-align:center;color:var(--dim);font-size:14px;line-height:1.7}
 .c-status b{color:var(--gold)}
-.c-flag-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:16px}
+.c-flag-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:16px}
+.pot-head{grid-column:1/-1;display:flex;align-items:center;gap:8px;margin-top:8px;
+  font-family:'Oswald';letter-spacing:.22em;font-size:12.5px;color:var(--gold);font-weight:700}
+.pot-head small{font-family:'Noto Sans KR';letter-spacing:0;color:var(--dim);font-weight:500;font-size:10.5px}
+.pot-head::after{content:'';flex:1;height:1px;background:var(--line)}
 .flag-cell{background:linear-gradient(180deg,#15223b,#101b30);border:1.5px solid var(--line);border-radius:13px;
-  padding:13px 6px 11px;text-align:center;cursor:pointer;transition:transform .08s}
+  padding:10px 4px 9px;text-align:center;cursor:pointer;transition:transform .08s}
 .flag-cell:active{transform:scale(.95)}
-.flag-cell img{width:52px;height:38px;object-fit:cover;border-radius:5px;box-shadow:0 4px 10px rgba(0,0,0,.45)}
-.flag-cell span{display:block;font-size:12.5px;font-weight:700;margin-top:7px}
+.flag-cell img{width:44px;height:32px;object-fit:cover;border-radius:4px;box-shadow:0 4px 10px rgba(0,0,0,.45)}
+.flag-cell span{display:block;font-size:11.5px;font-weight:700;margin-top:6px;line-height:1.25}
+.fc-rank{display:block;font-size:9.5px;color:var(--dim);margin-top:3px;font-weight:600;letter-spacing:-.01em}
+.fc-rank b{color:var(--gold);font-weight:700}
 .flag-cell.sel{border-color:var(--gold);box-shadow:0 0 0 2px rgba(233,194,91,.35)}
 .flag-cell.taken{opacity:.32;pointer-events:none}
 .c-btn{width:100%;border-radius:14px;font-weight:900;font-size:17px;padding:17px;color:#101728;
@@ -285,11 +291,12 @@ button{font-family:inherit;cursor:pointer;border:none}
     <div>
       <p class="lb-eyebrow">2026 WORLD CUP SPECIAL EVENT</p>
       <h1 class="lb-title">승부차기<br>ARENA</h1>
-      <p class="lb-sub"><b>2026년 월드컵 기념 페널티킥, 지금 도전하세요.</b><br>
-        휴대폰이 컨트롤러가 되고, 승부는 이 화면에서 펼쳐집니다.</p>
+      <p class="lb-sub"><b>2026 월드컵 참가 48개국 전원 등장! 페널티킥, 지금 도전하세요.</b><br>
+        휴대폰이 컨트롤러가 되고, 승부는 이 화면에서 펼쳐집니다.<br>
+        피파랭킹이 높은 팀일수록 파워 게이지가 느려 <b>킥이 쉽습니다</b>.</p>
       <div class="lb-steps">
         <div class="lb-step"><span class="no">01</span><p><b>QR 스캔</b><br>휴대폰 카메라로<br>오른쪽 QR을 찍습니다</p></div>
-        <div class="lb-step"><span class="no">02</span><p><b>국가 선택</b><br>휴대폰에서 나의<br>대표팀을 고릅니다</p></div>
+        <div class="lb-step"><span class="no">02</span><p><b>국가 선택</b><br>포트 1~4 · 48개국 중 선택<br>랭킹 높을수록 킥 쉬움</p></div>
         <div class="lb-step"><span class="no">03</span><p><b>5초 2단계 킥</b><br>방향 선택 → 파워바 충전!<br>파워를 못 정하면 킥 실패</p></div>
       </div>
       <div class="slots">
@@ -372,7 +379,7 @@ button{font-family:inherit;cursor:pointer;border:none}
   <div class="c-wrap">
     <div class="c-head">
       <p class="c-eyebrow" id="c-slot-label">PLAYER 1</p>
-      <h1 class="c-title">국가 선택<small>대표팀을 고르면 준비 완료!</small></h1>
+      <h1 class="c-title">국가 선택<small>2026 월드컵 참가 48개국 · 피파랭킹이 높을수록 파워 게이지가 느려 킥이 쉬워요!</small></h1>
     </div>
     <div class="c-flag-grid" id="c-flag-grid"></div>
     <p class="c-status" id="c-team-status" style="margin-top:16px"></p>
@@ -408,7 +415,7 @@ button{font-family:inherit;cursor:pointer;border:none}
     <div class="c-power" id="c-power">
       <div class="pw-track"><div class="pw-ok"></div><i id="pw-fill"></i><span class="pw-num" id="pw-num">0</span></div>
       <button class="pw-btn" id="pw-btn">⚽ 꾹 눌러 파워 충전 — 손을 떼면 슛!</button>
-      <p class="pw-hint">초록 구간이 적정 파워 · 너무 강하면 <b>골대 위로!</b> · 너무 약하면 <b>키퍼가 잡아요</b><br>시간 안에 파워를 정하지 못하면 <b>킥 실패</b></p>
+      <p class="pw-hint">초록 구간이 적정 파워 · 너무 강하면 <b>골대 위로!</b> · 너무 약하면 <b>키퍼가 잡아요</b><br>시간 안에 파워를 정하지 못하면 <b>킥 실패</b> · 내 팀 게이지: <b id="pw-speed">-</b></p>
     </div>
     <div class="c-feed dim" id="c-feed">전광판을 확인하세요</div>
     <div class="c-minibug">
@@ -436,20 +443,65 @@ button{font-family:inherit;cursor:pointer;border:none}
    TV: 렌더링/판정/사운드 담당(호스트) · 폰: 3초 입력 전용
 ============================================================ */
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+/* 2026 월드컵 참가 48개국 · fr=피파랭킹(2026.6) · pot=조추첨 포트 */
 const TEAMS=[
- {c:'kr',n:'대한민국',a:'KOR',col:'#c9323f',sock:'#c9323f'},
- {c:'jp',n:'일본',a:'JPN',col:'#274ea8',sock:'#1c3a80'},
- {c:'us',n:'미국',a:'USA',col:'#2f4d8f',sock:'#b23040'},
- {c:'mx',n:'멕시코',a:'MEX',col:'#1a6e46',sock:'#1a6e46'},
- {c:'ca',n:'캐나다',a:'CAN',col:'#c22b36',sock:'#c22b36'},
- {c:'br',n:'브라질',a:'BRA',col:'#e8c22a',sock:'#ffffff'},
- {c:'ar',n:'아르헨티나',a:'ARG',col:'#8fc0e8',sock:'#2b2f38'},
- {c:'fr',n:'프랑스',a:'FRA',col:'#22336e',sock:'#c22b36'},
- {c:'gb-eng',n:'잉글랜드',a:'ENG',col:'#e8e9ee',sock:'#e8e9ee'},
- {c:'es',n:'스페인',a:'ESP',col:'#b31e2b',sock:'#1c2f6e'},
- {c:'de',n:'독일',a:'GER',col:'#e9e9ec',sock:'#1a1a1e'},
- {c:'pt',n:'포르투갈',a:'POR',col:'#95202c',sock:'#1a4d3a'}
+ // POT 1 — 개최국 + 랭킹 최상위
+ {c:'ar',n:'아르헨티나',a:'ARG',col:'#8fc0e8',sock:'#2b2f38',fr:1,pot:1},
+ {c:'es',n:'스페인',a:'ESP',col:'#b31e2b',sock:'#1c2f6e',fr:2,pot:1},
+ {c:'fr',n:'프랑스',a:'FRA',col:'#22336e',sock:'#c22b36',fr:3,pot:1},
+ {c:'gb-eng',n:'잉글랜드',a:'ENG',col:'#e8e9ee',sock:'#e8e9ee',fr:4,pot:1},
+ {c:'pt',n:'포르투갈',a:'POR',col:'#95202c',sock:'#1a4d3a',fr:5,pot:1},
+ {c:'br',n:'브라질',a:'BRA',col:'#e8c22a',sock:'#ffffff',fr:6,pot:1},
+ {c:'nl',n:'네덜란드',a:'NED',col:'#e8730c',sock:'#e8730c',fr:8,pot:1},
+ {c:'be',n:'벨기에',a:'BEL',col:'#c22b36',sock:'#1a1a1e',fr:9,pot:1},
+ {c:'de',n:'독일',a:'GER',col:'#e9e9ec',sock:'#1a1a1e',fr:10,pot:1},
+ {c:'mx',n:'멕시코',a:'MEX',col:'#1a6e46',sock:'#c22b36',fr:14,pot:1},
+ {c:'us',n:'미국',a:'USA',col:'#2f4d8f',sock:'#b23040',fr:17,pot:1},
+ {c:'ca',n:'캐나다',a:'CAN',col:'#c22b36',sock:'#c22b36',fr:30,pot:1},
+ // POT 2
+ {c:'ma',n:'모로코',a:'MAR',col:'#c0392b',sock:'#1a6e46',fr:7,pot:2},
+ {c:'hr',n:'크로아티아',a:'CRO',col:'#d94848',sock:'#2b4ea8',fr:11,pot:2},
+ {c:'co',n:'콜롬비아',a:'COL',col:'#e8c22a',sock:'#1a3a80',fr:13,pot:2},
+ {c:'sn',n:'세네갈',a:'SEN',col:'#e9e9ec',sock:'#1a6e46',fr:15,pot:2},
+ {c:'uy',n:'우루과이',a:'URU',col:'#7ab3d9',sock:'#1a1a1e',fr:16,pot:2},
+ {c:'jp',n:'일본',a:'JPN',col:'#274ea8',sock:'#1c3a80',fr:18,pot:2},
+ {c:'ch',n:'스위스',a:'SUI',col:'#c22b36',sock:'#c22b36',fr:19,pot:2},
+ {c:'ir',n:'이란',a:'IRN',col:'#e9e9ec',sock:'#c22b36',fr:20,pot:2},
+ {c:'ec',n:'에콰도르',a:'ECU',col:'#e8c22a',sock:'#1a3a80',fr:23,pot:2},
+ {c:'at',n:'오스트리아',a:'AUT',col:'#c9323f',sock:'#e9e9ec',fr:24,pot:2},
+ {c:'kr',n:'대한민국',a:'KOR',col:'#c9323f',sock:'#c9323f',fr:25,pot:2},
+ {c:'au',n:'호주',a:'AUS',col:'#e8c22a',sock:'#1a6e46',fr:27,pot:2},
+ // POT 3
+ {c:'dz',n:'알제리',a:'ALG',col:'#e9e9ec',sock:'#1a6e46',fr:28,pot:3},
+ {c:'eg',n:'이집트',a:'EGY',col:'#c22b36',sock:'#1a1a1e',fr:29,pot:3},
+ {c:'no',n:'노르웨이',a:'NOR',col:'#c22b36',sock:'#22336e',fr:31,pot:3},
+ {c:'ci',n:'코트디부아르',a:'CIV',col:'#e8730c',sock:'#e8730c',fr:33,pot:3},
+ {c:'pa',n:'파나마',a:'PAN',col:'#c22b36',sock:'#22336e',fr:34,pot:3},
+ {c:'py',n:'파라과이',a:'PAR',col:'#c9323f',sock:'#22336e',fr:41,pot:3},
+ {c:'gb-sct',n:'스코틀랜드',a:'SCO',col:'#22336e',sock:'#22336e',fr:42,pot:3},
+ {c:'tn',n:'튀니지',a:'TUN',col:'#c22b36',sock:'#e9e9ec',fr:45,pot:3},
+ {c:'uz',n:'우즈베키스탄',a:'UZB',col:'#e9e9ec',sock:'#2b6eb8',fr:50,pot:3},
+ {c:'qa',n:'카타르',a:'QAT',col:'#7a1f2b',sock:'#7a1f2b',fr:56,pot:3},
+ {c:'za',n:'남아프리카공화국',a:'RSA',col:'#e8c22a',sock:'#1a6e46',fr:60,pot:3},
+ {c:'sa',n:'사우디아라비아',a:'KSA',col:'#1a6e46',sock:'#e9e9ec',fr:61,pot:3},
+ // POT 4
+ {c:'tr',n:'튀르키예',a:'TUR',col:'#c9323f',sock:'#c9323f',fr:22,pot:4},
+ {c:'se',n:'스웨덴',a:'SWE',col:'#e8c22a',sock:'#22336e',fr:38,pot:4},
+ {c:'cz',n:'체코',a:'CZE',col:'#c22b36',sock:'#22336e',fr:40,pot:4},
+ {c:'cd',n:'DR콩고',a:'COD',col:'#2b6eb8',sock:'#c22b36',fr:46,pot:4},
+ {c:'iq',n:'이라크',a:'IRQ',col:'#1a6e46',sock:'#e9e9ec',fr:57,pot:4},
+ {c:'jo',n:'요르단',a:'JOR',col:'#e9e9ec',sock:'#c22b36',fr:63,pot:4},
+ {c:'ba',n:'보스니아',a:'BIH',col:'#22336e',sock:'#e8c22a',fr:64,pot:4},
+ {c:'cv',n:'카보베르데',a:'CPV',col:'#2b6eb8',sock:'#c22b36',fr:67,pot:4},
+ {c:'gh',n:'가나',a:'GHA',col:'#e9e9ec',sock:'#c22b36',fr:73,pot:4},
+ {c:'cw',n:'퀴라소',a:'CUW',col:'#2b6eb8',sock:'#e8c22a',fr:82,pot:4},
+ {c:'ht',n:'아이티',a:'HAI',col:'#2b6eb8',sock:'#c22b36',fr:83,pot:4},
+ {c:'nz',n:'뉴질랜드',a:'NZL',col:'#e9e9ec',sock:'#1a1a1e',fr:85,pot:4}
 ];
+/* 참가팀 내 순위(ord)와 파워 게이지 상승시간(rise) 산출
+   — 1위 0.70초(쉬움) ↔ 48위 0.25초(어려움) 선형 보간 */
+(()=>{const R=[...TEAMS].sort((a,b)=>a.fr-b.fr);
+ R.forEach((t,i)=>{t.ord=i+1;t.rise=Math.round(700-(700-250)*i/(R.length-1))});})();
 const flag=c=>`https://flagcdn.com/w160/${c}.png`;
 const ZK=['TL','TR','L','C','R'];
 const PICK_SEC=5;               // 킥 준비 시간: 방향+파워 2단계를 5초 안에
@@ -793,16 +845,24 @@ const C={
  send(m){try{this.conn&&this.conn.open&&this.conn.send(m)}catch(e){}},
  bindUI(){
   const grid=$('#c-flag-grid');
-  TEAMS.forEach(t=>{
-    const d=document.createElement('div');d.className='flag-cell';d.dataset.c=t.c;
-    d.innerHTML=`<img src="${flag(t.c)}" alt=""><span>${t.n}</span>`;
-    d.onclick=()=>{ if(this.oppTeam&&this.oppTeam===t.c)return;
-      this.myTeam=t;this.refreshGrid();this.send({t:'team',c:t.c});
-      $('#c-team-status').innerHTML=`<b>${t.n}</b> 선택 완료 · 상대를 기다리는 중…`;
-      if(this.soloOk)$('#c-btn-solo').disabled=false;
-      if(navigator.vibrate)navigator.vibrate(25);
-    };
-    grid.appendChild(d);
+  const POT_TIP={1:'톱시드 · 킥 쉬움',2:'상위 시드',3:'하위 시드',4:'언더독 · 킥 어려움'};
+  [1,2,3,4].forEach(p=>{
+    const hd=document.createElement('div');hd.className='pot-head';
+    hd.innerHTML=`POT ${p} <small>${POT_TIP[p]}</small>`;
+    grid.appendChild(hd);
+    TEAMS.filter(t=>t.pot===p).sort((a,b)=>a.fr-b.fr).forEach(t=>{
+      const d=document.createElement('div');d.className='flag-cell';d.dataset.c=t.c;
+      d.innerHTML=`<img src="${flag(t.c)}" alt=""><span>${t.n}</span>
+        <small class="fc-rank">FIFA <b>${t.fr}위</b> · 참가 ${t.ord}위</small>
+        <small class="fc-rank">게이지 ${(t.rise/1000).toFixed(2)}초</small>`;
+      d.onclick=()=>{ if(this.oppTeam&&this.oppTeam===t.c)return;
+        this.myTeam=t;this.refreshGrid();this.send({t:'team',c:t.c});
+        $('#c-team-status').innerHTML=`<b>${t.n}</b> (FIFA ${t.fr}위 · 참가팀 중 ${t.ord}위) 선택 완료<br>파워 게이지 ${(t.rise/1000).toFixed(2)}초 · 상대를 기다리는 중…`;
+        if(this.soloOk)$('#c-btn-solo').disabled=false;
+        if(navigator.vibrate)navigator.vibrate(25);
+      };
+      grid.appendChild(d);
+    });
   });
   $('#c-btn-solo').onclick=()=>{this.send({t:'solo'});$('#c-btn-solo').disabled=true;
     $('#c-team-status').textContent='컴퓨터와의 대결을 준비하는 중…'};
@@ -854,7 +914,8 @@ const C={
  chargeLoop(){
   if(!this.charging)return;
   const el=performance.now()-this.chargeT0;
-  const ph=(el/460)%2;                           // 0.46초에 0→100, 이후 왕복 (고속 게이지)
+  const rise=(this.myTeam&&this.myTeam.rise)||460; // 팀 랭킹별 게이지 속도(1위 0.7초 ↔ 48위 0.25초)
+  const ph=(el/rise)%2;
   this.pw=Math.round((ph<1?ph:2-ph)*100);
   this.drawPw();
   this.chargeRaf=requestAnimationFrame(()=>this.chargeLoop());
@@ -912,6 +973,7 @@ const C={
      const role=$('#c-role');role.classList.toggle('keep',!kick);
      $('#c-role-tag').textContent=(m.round>5?'SUDDEN DEATH · ':'ROUND '+m.round+' · ')+(kick?'KICKER':'GOALKEEPER');
      $('#c-role-txt').textContent=kick?'⚽ ① 방향 → ② 파워!':'🧤 막을 곳을 터치!';
+     if(kick&&this.myTeam)$('#pw-speed').textContent=(this.myTeam.rise/1000).toFixed(2)+'초 (FIFA '+this.myTeam.fr+'위)';
      $$('.padbtn').forEach(b=>b.classList.remove('sel'));
      $('#goalpad').classList.remove('locked');
      this.feed(kick?'5초 안에 방향 선택 → 파워 충전!':'상대의 슛을 예측하세요!','dim');
