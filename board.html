@@ -1724,8 +1724,12 @@ function parseSchedule(txt){
 function applyThemeSmart(){
   let name;
   const t=LAST.theme;
-  const schedTxt = t==="스케줄" ? String(LAST.schedule||"")
-                 : (/[::]\s*\d/.test(t) ? t : "");
+  /* 테마설정 탭(스케줄)에 체크된 테마가 하나라도 있으면 설정 B1의 개별 테마 선택보다
+     항상 우선한다 — 탭에서 1개만 체크하면 해당 테마 고정과 동일하므로 기능 손실 없음.
+     탭이 비어 있을 때만 B1(개별 테마/자동/인라인 스케줄)을 따른다. */
+  let schedTxt=String(LAST.schedule||"").trim();
+  if(!parseSchedule(schedTxt).length)
+    schedTxt = /[::]\s*\d/.test(t) ? t : "";
   if(schedTxt){
     if(SCHED.src!==schedTxt) SCHED={list:parseSchedule(schedTxt),idx:-1,until:0,src:schedTxt};
     if(SCHED.list.length){
@@ -1738,7 +1742,7 @@ function applyThemeSmart(){
       if(name==="자동") name=autoThemeName();
     } else name="하늘";
   } else {
-    name = t==="자동" ? autoThemeName() : t;
+    name = (t==="자동"||t==="스케줄") ? autoThemeName() : t;
   }
   if(name===appliedTheme) return;
   const changed=appliedTheme!=="";
