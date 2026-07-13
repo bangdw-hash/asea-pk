@@ -658,9 +658,16 @@ const IS_CTRL=PARAMS.has('room');
 const IS_EMBED=!IS_CTRL&&PARAMS.get('embed')==='1'&&window.parent!==window;
 const EMB={
  post(t,x){if(!IS_EMBED)return;try{parent.postMessage(Object.assign({t},x||{}),'*')}catch(e){}},
- active(){this.post('gk26:active');TV._lastBusy=Date.now();TV._idleSent=false}
+ active(){this.post('gk26:active');TV._lastBusy=Date.now();TV._idleSent=false},
+ joinUrl(){return TV.code?location.origin+location.pathname+'?room='+TV.code:''},
+ sendUrl(){const u=this.joinUrl();if(u)this.post('gk26:url',{url:u})}
 };
-if(IS_EMBED)setInterval(()=>EMB.post('gk26:hb'),5000);
+if(IS_EMBED){
+ // 하트비트 + 접속 QR URL을 반복 전송(셸이 첫 메시지를 놓쳐도 확실히 QR 표시)
+ setInterval(()=>{EMB.post('gk26:hb');EMB.sendUrl()},5000);
+ // 셸이 로드 직후 URL을 요청하면 즉시 응답
+ addEventListener('message',e=>{if(e.data&&e.data.t==='gk26:reqUrl')EMB.sendUrl()});
+}
 
 /* ============================================================
    TV (호스트)
@@ -709,6 +716,7 @@ const TV={
  },
  makePeer(){
   this.code=String(1000+Math.random()*9000|0);
+  EMB.sendUrl(); // 코드가 정해지는 즉시 셸에 접속 URL 전달(피어 연결 전에도 QR 표시)
   try{this.peer=new Peer('asea-arena-'+this.code,{debug:0})}catch(e){return}
   this.peer.on('open',()=>this.renderQR());
   this.peer.on('connection',c=>this.onConn(c));
