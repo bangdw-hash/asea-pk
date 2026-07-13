@@ -1503,36 +1503,25 @@ function greetTick(){
     greetAnalyze(g);
   }catch(e){}
 }
-/* ── 재실 감지 상태기계 ──
+/* ── 통행 감지(고감도) ──
    배경(빈 장면)을 기억해 두고 현재 프레임과 비교:
-   · 전경 비율 ≥ NEAR(15%) = 근접(약 3m 이내) 인물 → '입장' 순간 1회 인사
-   · 인물이 머무르는 동안(전경 유지)은 동일인으로 간주, 재인사 없음
-   · 전경 < EMPTY(4%)가 2초 지속 = 퇴장 → 다음 입장 시 다시 인사
-   · 원거리(3m 밖) 통행(전경 4~15%)은 무시                       */
-const NEAR=0.15, EMPTY=0.04, DIFF=28;
+   · 전경 비율 ≥ TRIG(6%) = 지나가는 사람/물체 감지 → 즉시 인사
+     (정면·근접 불필요, 스쳐 지나가는 움직임에도 반응)
+   · 인사 종료 후 5초 뒤 센서 재작동 → 움직임이 있으면 다시 인사
+   · 전경 < EMPTY(4%) = 빈 장면 → 배경 빠른 적응(조명 변화 흡수)   */
+const TRIG=0.06, EMPTY=0.04, DIFF=25;
 function greetAnalyze(g){
   if(!GREET.bg){ GREET.bg=Float32Array.from(g); GREET.emptyTicks=0; GREET.present=false; return; }
   let fg=0;
   for(let i=0;i<1200;i++) if(Math.abs(g[i]-GREET.bg[i])>DIFF) fg++;
   const ratio=fg/1200;
 
-  /* 배경 적응: 빈 장면일 땐 빠르게(조명 변화 흡수), 사람 있을 땐 아주 느리게 */
+  /* 배경 적응: 빈 장면일 땐 빠르게(조명 변화 흡수), 움직임 있을 땐 아주 느리게 */
   const a = ratio<EMPTY ? .10 : .004;
   for(let i=0;i<1200;i++) GREET.bg[i]=GREET.bg[i]*(1-a)+g[i]*a;
 
-  if(ratio>=NEAR){
-    GREET.emptyTicks=0;
-    if(!GREET.present){                       // 입장 순간
-      GREET.present=true;
-      if(!GREET.showing && Date.now()>GREET.cool) showGreeting();
-    }
-  }else if(ratio<EMPTY){
-    if(++GREET.emptyTicks>=5){                // 2초 연속 빈 장면 = 퇴장 확정
-      GREET.present=false;
-    }
-  }else{
-    GREET.emptyTicks=0;                       // 원거리 통행: 상태 유지, 인사 없음
-  }
+  // 지나가는 움직임이면 즉시 인사 (재생 중이거나 재작동 대기 5초 안이면 대기)
+  if(ratio>=TRIG && !GREET.showing && Date.now()>GREET.cool) showGreeting();
 }
 function showGreeting(){
   if(window.GK_ON) return;               // 골든킥 게임 표시 중에는 인사 억제
@@ -1553,7 +1542,7 @@ function showGreeting(){
     el.classList.remove("on");
     setTimeout(()=>{
       v.pause(); GREET.showing=false;
-      GREET.cool=Date.now()+(LAST.greetGap||3)*1000;  // 설정 B10 인사간격(초) 뒤 재인사
+      GREET.cool=Date.now()+5000;  // 인사 종료 5초 후 센서 재작동(다음 통행에 다시 인사)
     },1100);   // 페이드아웃 후 정지
   }, dur+1800);                                                  // 인사 종료 후 1.8초 여운
 }
