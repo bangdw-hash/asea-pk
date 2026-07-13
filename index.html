@@ -654,6 +654,18 @@ const AUD={ctx:null,amb:null,ambG:null,
 ============================================================ */
 const PARAMS=new URLSearchParams(location.search);
 const IS_CTRL=PARAMS.has('room');
+/* PeerJS 연결 설정: 서로 다른 네트워크(셀룰러↔WiFi)에서도 붙도록
+   다중 STUN + 무료 TURN 중계 서버를 함께 사용. TURN이 있으면 방화벽/NAT에
+   막힌 경우 중계로 우회해 연결 성공률이 크게 오른다. */
+const ICE_SERVERS=[
+  {urls:'stun:stun.l.google.com:19302'},
+  {urls:'stun:stun1.l.google.com:19302'},
+  {urls:'stun:stun.cloudflare.com:3478'},
+  {urls:'turn:openrelay.metered.ca:80',username:'openrelayproject',credential:'openrelayproject'},
+  {urls:'turn:openrelay.metered.ca:443',username:'openrelayproject',credential:'openrelayproject'},
+  {urls:'turn:openrelay.metered.ca:443?transport=tcp',username:'openrelayproject',credential:'openrelayproject'}
+];
+const PEER_OPT={debug:0,config:{iceServers:ICE_SERVERS}};
 /* 전광판(board.html) iframe 내장 모드: 셸과 postMessage로 표시/복귀 협상 */
 const IS_EMBED=!IS_CTRL&&PARAMS.get('embed')==='1'&&window.parent!==window;
 const EMB={
@@ -717,7 +729,7 @@ const TV={
  makePeer(){
   this.code=String(1000+Math.random()*9000|0);
   EMB.sendUrl(); // 코드가 정해지는 즉시 셸에 접속 URL 전달(피어 연결 전에도 QR 표시)
-  try{this.peer=new Peer('asea-arena-'+this.code,{debug:0})}catch(e){return}
+  try{this.peer=new Peer('asea-arena-'+this.code,PEER_OPT)}catch(e){return}
   this.peer.on('open',()=>this.renderQR());
   this.peer.on('connection',c=>this.onConn(c));
   this.peer.on('error',err=>{
@@ -1039,21 +1051,52 @@ const C={
  role:null,dirZ:null,charging:false,pw:0,chargeT0:0,chargeRaf:null,pingTid:null,
  init(){
   show('c-join');
-  const code=PARAMS.get('room');
-  const peer=new Peer({debug:0});
-  const to=setTimeout(()=>{$('#c-join-status').innerHTML='전광판을 찾지 못했습니다.<br>QR을 다시 스캔해 주세요.'},14000);
+  this._code=PARAMS.get('room');
+  this._tries=0;
+  this.connect();
+  this.bindUI();
+ },
+ stat(html){$('#c-join-status').innerHTML=html},
+ connect(){
+  this._tries++;
+  const code=this._code, self=this;
+  this.stat(this._tries>1?`전광판에 다시 연결하는 중… (${this._tries}/4)`:'전광판에 연결하는 중…');
+  let peer;
+  try{peer=new Peer(PEER_OPT)}catch(e){this.stat('이 브라우저는 지원되지 않습니다.<br>크롬/사파리 최신 버전으로 열어 주세요.');return}
+  this._peer=peer;
+  let done=false;
+  const giveOrRetry=(finalMsg)=>{
+    if(done)return;done=true;
+    try{peer.destroy()}catch(e){}
+    if(self._tries<4){ setTimeout(()=>self.connect(), 1200*self._tries); }
+    else{ self.stat(finalMsg); }
+  };
+  const to=setTimeout(()=>giveOrRetry(
+    '전광판을 찾지 못했습니다.<br>전광판이 켜져 있는지 확인하고<br>아래 버튼으로 다시 시도해 주세요.'),12000);
   peer.on('open',()=>{
     const c=peer.connect('asea-arena-'+code,{reliable:true});
-    c.on('open',()=>{clearTimeout(to);this.conn=c;$('#c-join-status').textContent='연결 완료!';
-      clearInterval(this.pingTid);
-      this.pingTid=setInterval(()=>this.send({t:'ping'}),4000)}); // 생존 신호
-    c.on('data',m=>this.onMsg(m));
-    c.on('close',()=>{clearInterval(this.pingTid);
-      $('#c-join-status').innerHTML='전광판과의 연결이 끊어졌습니다.<br>QR을 다시 스캔해 주세요.';show('c-join')});
-    c.on('error',()=>{clearTimeout(to);$('#c-join-status').textContent='연결 실패 — QR을 다시 스캔해 주세요.'});
+    c.on('open',()=>{done=true;clearTimeout(to);self._tries=0;self.conn=c;
+      $('#c-join-status').textContent='연결 완료!';
+      clearInterval(self.pingTid);
+      self.pingTid=setInterval(()=>self.send({t:'ping'}),4000)}); // 생존 신호
+    c.on('data',m=>self.onMsg(m));
+    c.on('close',()=>{clearInterval(self.pingTid);
+      self.stat('전광판과의 연결이 끊어졌습니다.<br>QR을 다시 스캔하거나 아래 버튼을 눌러 주세요.');show('c-join')});
+    c.on('error',()=>{clearTimeout(to);
+      giveOrRetry('전광판에 연결하지 못했습니다.<br>전광판이 켜져 있는지 확인 후 다시 시도해 주세요.')});
   });
-  peer.on('error',()=>{clearTimeout(to);$('#c-join-status').textContent='연결 실패 — QR을 다시 스캔해 주세요.'});
-  this.bindUI();
+  peer.on('error',(err)=>{
+    clearTimeout(to);
+    const t=(err&&err.type)||'';
+    let msg;
+    if(t==='peer-unavailable')
+      msg='전광판을 찾을 수 없습니다.<br>전광판 화면이 켜져 있는지 확인하고<br>QR을 다시 스캔해 주세요.';
+    else if(t==='browser-incompatible')
+      msg='이 브라우저는 지원되지 않습니다.<br>크롬/사파리 최신 버전으로 열어 주세요.';
+    else
+      msg='연결이 불안정합니다.<br>잠시 후 다시 시도하거나<br>같은 와이파이에 연결 후 재시도해 주세요.';
+    giveOrRetry(msg);
+  });
  },
  send(m){try{this.conn&&this.conn.open&&this.conn.send(m)}catch(e){}},
  bindUI(){
