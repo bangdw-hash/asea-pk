@@ -2251,10 +2251,14 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
       case "gk26:idle":gkHide();break;
     }
   });
+  /* QR이 아직이면 게임에 접속 URL을 요청(로드 완료 전 첫 메시지를 놓쳤을 때 대비) */
+  function reqUrl(){ if(!qrUrl){try{frame.contentWindow.postMessage({t:"gk26:reqUrl"},"*")}catch(e){}} }
+  frame.addEventListener("load",()=>{ reqUrl(); setTimeout(reqUrl,800); });
+  const reqTid=setInterval(()=>{ if(qrUrl){clearInterval(reqTid);return;} reqUrl(); },2000);
   /* 게임 프리즈/크래시 자가 복구 */
   setInterval(()=>{
     if(Date.now()-lastHb>20000){
-      gkHide();lastHb=Date.now();
+      gkHide();lastHb=Date.now();qrUrl="";        // 재로드 시 QR 재수신하도록 초기화
       try{frame.contentWindow.location.reload()}catch(e){frame.src=frame.src}
     }
   },5000);
