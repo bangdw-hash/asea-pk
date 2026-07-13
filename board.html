@@ -290,6 +290,17 @@ table.rent td.tm{font-family:var(--font-mono);white-space:nowrap}
 }
 .clockcard .wx .ico{font-size:3vh;line-height:1}
 .clockcard .wx .tmp{font-family:var(--font-clock);font-size:2.6vh;color:var(--clocktext)}
+.clockcard .wxhum{
+  margin-top:1.2vh;display:flex;align-items:center;gap:.7vw;
+  font-size:1.7vh;color:var(--clockaccent);letter-spacing:.04em;
+}
+.clockcard .wxhum .hlabel{opacity:.9;white-space:nowrap;flex:none}
+.clockcard .wxhum .hbar{
+  flex:1;min-width:7vw;height:1.2vh;border-radius:99px;overflow:hidden;
+  background:rgba(255,255,255,.14);box-shadow:inset 0 1px 2px rgba(0,0,0,.25);
+}
+.clockcard .wxhum .hbar i{display:block;height:100%;width:0;border-radius:99px;transition:width .8s ease,background .8s ease}
+.clockcard .wxhum .hval{font-family:var(--font-clock);font-size:1.8vh;color:var(--clocktext);white-space:nowrap;flex:none}
 
 /* 날씨 효과 오버레이 (비·눈) */
 .wxfx{position:fixed;inset:0;pointer-events:none;z-index:6;overflow:hidden}
@@ -1005,6 +1016,11 @@ body.theme-tour .slide h2{text-shadow:none}
         <span class="tmp" id="wxTmp"></span>
         <span id="wxTxt"></span>
       </div>
+      <div class="wxhum" id="wxHum" style="display:none">
+        <span class="hlabel">💧 습도</span>
+        <div class="hbar"><i id="wxHumBar"></i></div>
+        <span class="hval" id="wxHumTxt"></span>
+      </div>
     </div>
     <div class="infocard">
       <h3>주요 안내 <span class="notipg" id="notipg"></span></h3>
@@ -1680,7 +1696,7 @@ function buildRunwayLights(on){
 }
 
 /* ═══ 날씨 연동 (Open-Meteo · 서울 · 무료/키 불필요) ═══ */
-const WX={code:null,temp:null,isDay:1,ok:false};
+const WX={code:null,temp:null,hum:null,isDay:1,ok:false};
 const LAST={theme:"하늘",fonts:null};
 
 function isRain(c){return (c>=51&&c<=67)||(c>=80&&c<=82)||(c>=95&&c<=99);}
@@ -1724,8 +1740,12 @@ function parseSchedule(txt){
 function applyThemeSmart(){
   let name;
   const t=LAST.theme;
-  const schedTxt = t==="스케줄" ? String(LAST.schedule||"")
-                 : (/[::]\s*\d/.test(t) ? t : "");
+  /* 테마설정 탭(스케줄)에 체크된 테마가 하나라도 있으면 설정 B1의 개별 테마 선택보다
+     항상 우선한다 — 탭에서 1개만 체크하면 해당 테마 고정과 동일하므로 기능 손실 없음.
+     탭이 비어 있을 때만 B1(개별 테마/자동/인라인 스케줄)을 따른다. */
+  let schedTxt=String(LAST.schedule||"").trim();
+  if(!parseSchedule(schedTxt).length)
+    schedTxt = /[::]\s*\d/.test(t) ? t : "";
   if(schedTxt){
     if(SCHED.src!==schedTxt) SCHED={list:parseSchedule(schedTxt),idx:-1,until:0,src:schedTxt};
     if(SCHED.list.length){
@@ -1738,7 +1758,7 @@ function applyThemeSmart(){
       if(name==="자동") name=autoThemeName();
     } else name="하늘";
   } else {
-    name = t==="자동" ? autoThemeName() : t;
+    name = (t==="자동"||t==="스케줄") ? autoThemeName() : t;
   }
   if(name===appliedTheme) return;
   const changed=appliedTheme!=="";
@@ -1749,14 +1769,33 @@ function applyThemeSmart(){
   try{if(changed) sndCue();}catch(e){} // 테마 전환 시그널(상승 2음)
 }
 
+/* 상대습도(%) → 일반인용 체감 등급 + 게이지 색 */
+function humComfort(h){
+  if(h<30) return ["건조","#f0a53c"];        // 주황
+  if(h<60) return ["쾌적","#3ddc84"];        // 초록
+  if(h<70) return ["약간 습함","#4ec3e0"];   // 하늘
+  if(h<80) return ["습함","#3d8ee0"];        // 파랑
+  return ["매우 습함","#6b74e0"];            // 남보라
+}
 function renderWeather(){
   const el=document.getElementById("wx");
-  if(!WX.ok){ el.style.display="none"; return; }
+  if(!WX.ok){ el.style.display="none"; document.getElementById("wxHum").style.display="none"; return; }
   const [ico,txt]=wxInfo(WX.code);
   document.getElementById("wxIco").textContent=ico;
   document.getElementById("wxTmp").textContent=Math.round(WX.temp)+"°C";
   document.getElementById("wxTxt").textContent=txt;
   el.style.display="flex";
+  // 습도 막대 게이지 + 체감 문구
+  const hEl=document.getElementById("wxHum");
+  if(WX.hum==null){ hEl.style.display="none"; }
+  else{
+    const [lab,col]=humComfort(WX.hum);
+    const bar=document.getElementById("wxHumBar");
+    bar.style.width=Math.max(4,Math.min(100,WX.hum))+"%";
+    bar.style.background=col;
+    document.getElementById("wxHumTxt").textContent=WX.hum+"% · "+lab;
+    hEl.style.display="flex";
+  }
 }
 
 /* 비·눈 오버레이 생성 */
@@ -1796,9 +1835,10 @@ function buildFX(){
 
 async function fetchWeather(){
   try{
-    const r=await fetch("https://api.open-meteo.com/v1/forecast?latitude=37.5665&longitude=126.9780&current=temperature_2m,weather_code,is_day&timezone=Asia%2FSeoul");
+    const r=await fetch("https://api.open-meteo.com/v1/forecast?latitude=37.5665&longitude=126.9780&current=temperature_2m,relative_humidity_2m,weather_code,is_day&timezone=Asia%2FSeoul");
     const j=await r.json();
     WX.code=j.current.weather_code; WX.temp=j.current.temperature_2m;
+    WX.hum=(typeof j.current.relative_humidity_2m==="number")?Math.round(j.current.relative_humidity_2m):null;
     WX.isDay=j.current.is_day; WX.ok=true;
   }catch(e){ WX.ok=false; }
   renderWeather(); buildFX(); applyThemeSmart(); sndApply();
@@ -2115,18 +2155,42 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
 <style>
 #gk-banner{position:fixed;right:1.2vw;bottom:1.6vh;z-index:800;display:flex;align-items:center;gap:.9vw;
   background:rgba(7,14,26,.9);border:1px solid rgba(233,194,91,.55);border-radius:1vw;
-  padding:1.1vh 1.1vw;box-shadow:0 10px 34px rgba(0,0,0,.5);backdrop-filter:blur(4px)}
+  padding:1.1vh 1.1vw;overflow:hidden;backdrop-filter:blur(4px);
+  animation:gkFloat 4.5s ease-in-out infinite, gkGlow 3s ease-in-out infinite;
+  will-change:transform}
+/* 대각선 빛 스침 (주기적으로 훑고 지나감) */
+#gk-banner::before{content:"";position:absolute;top:0;left:-60%;width:45%;height:100%;
+  background:linear-gradient(105deg,transparent,rgba(255,255,255,.16),transparent);
+  transform:skewX(-18deg);animation:gkSheen 5s ease-in-out infinite;pointer-events:none}
 #gk-banner .q{background:#fff;border-radius:.5vw;padding:.4vw;display:none}
 #gk-banner .q canvas,#gk-banner .q img{width:9vh!important;height:9vh!important;display:block}
+#gk-banner .t{position:relative}
 #gk-banner .t b{display:block;color:#f7e2a4;font-size:2vh;font-weight:900;letter-spacing:.02em}
+#gk-banner .t b .gk-ball{display:inline-block;transform-origin:50% 80%;
+  animation:gkBall 2.2s ease-in-out infinite}
 #gk-banner .t span{display:block;color:#9db2cc;font-size:1.4vh;margin-top:.4vh;line-height:1.5}
+#gk-banner .gk-cta{display:inline-block;margin-top:.5vh;padding:.25vh .7vw;border-radius:99px;
+  font-size:1.25vh;font-weight:900;color:#1a1205;letter-spacing:.03em;
+  background:linear-gradient(180deg,#f7e2a4,#e9c25b);
+  box-shadow:0 0 0 0 rgba(233,194,91,.55);animation:gkPulse 1.9s ease-out infinite}
+@keyframes gkFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-.8vh)}}
+@keyframes gkGlow{
+  0%,100%{box-shadow:0 10px 34px rgba(0,0,0,.5),0 0 0 rgba(233,194,91,0);border-color:rgba(233,194,91,.5)}
+  50%{box-shadow:0 10px 34px rgba(0,0,0,.5),0 0 2.4vh rgba(233,194,91,.5);border-color:rgba(247,226,164,.95)}}
+@keyframes gkSheen{0%{left:-60%}22%,100%{left:130%}}
+@keyframes gkBall{0%,72%,100%{transform:translateY(0) rotate(0)}
+  82%{transform:translateY(-.7vh) rotate(-16deg)}92%{transform:translateY(0) rotate(8deg)}}
+@keyframes gkPulse{0%{box-shadow:0 0 0 0 rgba(233,194,91,.5)}
+  70%,100%{box-shadow:0 0 0 1vh rgba(233,194,91,0)}}
+@media (prefers-reduced-motion:reduce){
+  #gk-banner,#gk-banner::before,#gk-banner .t b .gk-ball,#gk-banner .gk-cta{animation:none}}
 #gk-frame{position:fixed;inset:0;width:100%;height:100%;border:0;z-index:900;
   background:#04070d;display:none;opacity:0;transition:opacity .5s}
 #gk-frame.on{opacity:1}
 </style>
 <div id="gk-banner">
   <div class="q" id="gk-qr"></div>
-  <div class="t"><b>⚽ 골든킥 2026</b><span>휴대폰으로 QR을 찍으면<br>월드컵 승부차기 시작!</span></div>
+  <div class="t"><b><span class="gk-ball">⚽</span> 골든킥 2026</b><span>휴대폰으로 QR을 찍으면<br>월드컵 승부차기 시작!</span><span class="gk-cta">▶ 지금 참가!</span></div>
 </div>
 <iframe id="gk-frame" src="./index.html?embed=1" allow="autoplay" title="ASEA 골든킥 2026"></iframe>
 <script>
