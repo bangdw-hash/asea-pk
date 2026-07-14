@@ -672,7 +672,8 @@ const EMB={
  post(t,x){if(!IS_EMBED)return;try{parent.postMessage(Object.assign({t},x||{}),'*')}catch(e){}},
  active(){this.post('gk26:active');TV._lastBusy=Date.now();TV._idleSent=false},
  joinUrl(){return TV.code?location.origin+location.pathname+'?room='+TV.code:''},
- sendUrl(){const u=this.joinUrl();if(u)this.post('gk26:url',{url:u})}
+ // 전광판 QR은 피어가 실제로 브로커에 등록(open)된 뒤에만 광고 → 죽은 코드 스캔 방지
+ sendUrl(){const u=this.joinUrl();if(u&&TV.peerReady)this.post('gk26:url',{url:u})}
 };
 if(IS_EMBED){
  // 하트비트 + 접속 QR URL을 반복 전송(셸이 첫 메시지를 놓쳐도 확실히 QR 표시)
@@ -728,12 +729,17 @@ const TV={
  },
  makePeer(){
   this.code=String(1000+Math.random()*9000|0);
-  EMB.sendUrl(); // 코드가 정해지는 즉시 셸에 접속 URL 전달(피어 연결 전에도 QR 표시)
+  this.peerReady=false;
   try{this.peer=new Peer('asea-arena-'+this.code,PEER_OPT)}catch(e){return}
-  this.peer.on('open',()=>this.renderQR());
+  this.peer.on('open',()=>{this.peerReady=true;this.renderQR();EMB.sendUrl()}); // 등록 완료 후에만 QR 광고
   this.peer.on('connection',c=>this.onConn(c));
   this.peer.on('error',err=>{
-    if(String(err.type).includes('unavailable-id')){try{this.peer.destroy()}catch(e){};this.makePeer()}
+    const t=String(err&&err.type||'');
+    // 코드 충돌 또는 브로커/네트워크 오류 → 피어 재생성(새 코드로 재등록, 죽은 QR 방지)
+    if(t.includes('unavailable-id')||t==='network'||t==='server-error'||t==='socket-error'||t==='socket-closed'){
+      this.peerReady=false;try{this.peer.destroy()}catch(e){}
+      clearTimeout(this._remakeTid);this._remakeTid=setTimeout(()=>this.makePeer(),1500);
+    }
   });
  },
  renderQR(){
@@ -1060,19 +1066,22 @@ const C={
  connect(){
   this._tries++;
   const code=this._code, self=this;
-  this.stat(this._tries>1?`전광판에 다시 연결하는 중… (${this._tries}/4)`:'전광판에 연결하는 중…');
+  const head=this._tries>1?`전광판에 다시 연결하는 중… (${this._tries}/4)`:'전광판에 연결하는 중…';
+  this.stat(head);
   let peer;
   try{peer=new Peer(PEER_OPT)}catch(e){this.stat('이 브라우저는 지원되지 않습니다.<br>크롬/사파리 최신 버전으로 열어 주세요.');return}
   this._peer=peer;
   let done=false;
-  const giveOrRetry=(finalMsg)=>{
+  // reason: 화면 하단에 남는 진단 문구(원인 특정용)
+  const giveOrRetry=(finalMsg,reason)=>{
     if(done)return;done=true;
     try{peer.destroy()}catch(e){}
-    if(self._tries<4){ setTimeout(()=>self.connect(), 1200*self._tries); }
-    else{ self.stat(finalMsg); }
+    const diag=reason?`<br><span style="font-size:12px;color:#8ea0c0">사유: ${reason}</span>`:'';
+    if(self._tries<4){ self.stat(head+diag); setTimeout(()=>self.connect(), 1200*self._tries); }
+    else{ self.stat(finalMsg+diag); }
   };
   const to=setTimeout(()=>giveOrRetry(
-    '전광판을 찾지 못했습니다.<br>전광판이 켜져 있는지 확인하고<br>아래 버튼으로 다시 시도해 주세요.'),12000);
+    '전광판을 찾지 못했습니다.<br>전광판이 켜져 있는지 확인하고<br>아래 버튼으로 다시 시도해 주세요.','응답 없음(시간 초과)'),12000);
   peer.on('open',()=>{
     const c=peer.connect('asea-arena-'+code,{reliable:true});
     c.on('open',()=>{done=true;clearTimeout(to);self._tries=0;self.conn=c;
@@ -1082,20 +1091,20 @@ const C={
     c.on('data',m=>self.onMsg(m));
     c.on('close',()=>{clearInterval(self.pingTid);
       self.stat('전광판과의 연결이 끊어졌습니다.<br>QR을 다시 스캔하거나 아래 버튼을 눌러 주세요.');show('c-join')});
-    c.on('error',()=>{clearTimeout(to);
-      giveOrRetry('전광판에 연결하지 못했습니다.<br>전광판이 켜져 있는지 확인 후 다시 시도해 주세요.')});
+    c.on('error',(e)=>{clearTimeout(to);
+      giveOrRetry('전광판에 연결하지 못했습니다.<br>같은 와이파이에 연결 후 다시 시도해 주세요.','데이터연결 실패'+((e&&e.type)?'('+e.type+')':''))});
   });
   peer.on('error',(err)=>{
     clearTimeout(to);
-    const t=(err&&err.type)||'';
+    const t=(err&&err.type)||'unknown';
     let msg;
     if(t==='peer-unavailable')
       msg='전광판을 찾을 수 없습니다.<br>전광판 화면이 켜져 있는지 확인하고<br>QR을 다시 스캔해 주세요.';
     else if(t==='browser-incompatible')
       msg='이 브라우저는 지원되지 않습니다.<br>크롬/사파리 최신 버전으로 열어 주세요.';
     else
-      msg='연결이 불안정합니다.<br>잠시 후 다시 시도하거나<br>같은 와이파이에 연결 후 재시도해 주세요.';
-    giveOrRetry(msg);
+      msg='연결이 불안정합니다.<br>전광판과 같은 와이파이에 연결한 뒤<br>QR을 다시 스캔해 주세요.';
+    giveOrRetry(msg,t);
   });
  },
  send(m){try{this.conn&&this.conn.open&&this.conn.send(m)}catch(e){}},
