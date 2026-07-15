@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@400;500;700;900&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.2/peerjs.min.js"></script>
+<script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
 :root{
@@ -654,18 +654,96 @@ const AUD={ctx:null,amb:null,ambG:null,
 ============================================================ */
 const PARAMS=new URLSearchParams(location.search);
 const IS_CTRL=PARAMS.has('room');
-/* PeerJS 연결 설정: 서로 다른 네트워크(셀룰러↔WiFi)에서도 붙도록
-   다중 STUN + 무료 TURN 중계 서버를 함께 사용. TURN이 있으면 방화벽/NAT에
-   막힌 경우 중계로 우회해 연결 성공률이 크게 오른다. */
-const ICE_SERVERS=[
-  {urls:'stun:stun.l.google.com:19302'},
-  {urls:'stun:stun1.l.google.com:19302'},
-  {urls:'stun:stun.cloudflare.com:3478'},
-  {urls:'turn:openrelay.metered.ca:80',username:'openrelayproject',credential:'openrelayproject'},
-  {urls:'turn:openrelay.metered.ca:443',username:'openrelayproject',credential:'openrelayproject'},
-  {urls:'turn:openrelay.metered.ca:443?transport=tcp',username:'openrelayproject',credential:'openrelayproject'}
-];
-const PEER_OPT={debug:0,config:{iceServers:ICE_SERVERS}};
+/* ============================================================
+   NET — 공용 MQTT(WebSocket) 중계 전송
+   WebRTC P2P(PeerJS)를 대체. 전광판·폰 모두 공용 브로커에 아웃바운드
+   WSS로 접속해 메시지를 주고받으므로, 셀룰러↔WiFi 등 서로 다른
+   네트워크에서도 NAT 상관없이 연결된다. mqtt.js가 자동 재연결하므로
+   장시간 구동 시 끊김도 자가 복구. PeerJS의 conn(open/send/on) 형태를
+   흉내내어 게임 로직 변경을 최소화한다.
+   토픽: gk26/<code>/toTV (폰→전광판), gk26/<code>/toC/<id> (전광판→폰),
+        gk26/<code>/pres (전광판 생존, retained + LWT)
+============================================================ */
+const MQTT_URLS=['wss://broker.emqx.io:8084/mqtt','wss://broker.hivemq.com:8884/mqtt'];
+function _rid(n){let s='';const c='abcdefghijklmnopqrstuvwxyz0123456789';for(let i=0;i<(n||10);i++)s+=c[Math.random()*c.length|0];return s}
+function _emitter(){const h={};return{
+  on(e,cb){(h[e]=h[e]||[]).push(cb);return this},
+  _emit(e,a){(h[e]||[]).forEach(f=>{try{f(a)}catch(x){}})}
+}}
+const NET={
+ _connect(lwt,onUp,onDown){ // 브로커 접속(첫 URL 실패 시 폴백), 자동 재연결
+  let idx=0;
+  const opts={clean:true,connectTimeout:8000,reconnectPeriod:2500,keepalive:30,
+    clientId:'gk-'+_rid(12)};
+  if(lwt)opts.will=lwt;
+  const mk=()=>{
+    const cl=mqtt.connect(MQTT_URLS[idx],opts);
+    let first=true;
+    cl.on('connect',()=>{onUp&&onUp(cl,first);first=false});
+    cl.on('close',()=>onDown&&onDown());
+    cl.on('error',()=>{ if(first&&idx<MQTT_URLS.length-1){idx++;try{cl.end(true)}catch(e){}mk();} });
+    return cl;
+  };
+  return mk();
+ },
+ // 호스트(전광판): 접속 폰마다 conn 생성 → onConnection(conn)
+ host(code,onConnection){
+  const T=t=>'gk26/'+code+'/'+t, conns={};
+  const H={code,conns,cl:null,ready:false,onReady:null};
+  const cl=this._connect(
+    {topic:T('pres'),payload:'0',retain:true,qos:0},
+    (c,first)=>{ H.cl=c; H.ready=true;
+      c.subscribe(T('toTV'),{qos:0});
+      c.publish(T('pres'),'1',{retain:true,qos:0});   // 전광판 생존 표시
+      H.onReady&&H.onReady();                          // (재)연결마다 QR/URL 갱신
+    },
+    ()=>{H.ready=false});
+  cl.on('message',(topic,buf)=>{
+    if(topic!=='gk26/'+code+'/toTV')return;
+    let m;try{m=JSON.parse(buf.toString())}catch(e){return}
+    const from=m.from;if(!from)return;
+    if(m.t==='bye'){const c=conns[from];if(c){c.open=false;delete conns[from];c._emit('close')}return}
+    if(m.t==='hello'){
+      if(conns[from])return;
+      const conn=Object.assign(_emitter(),{id:from,open:false,
+        send(d){if(H.cl&&this.open){try{H.cl.publish(T('toC/'+from),JSON.stringify(d))}catch(x){}}},
+        close(){if(this.open){this.open=false;try{H.cl&&H.cl.publish(T('toC/'+from),JSON.stringify({t:'_bye'}))}catch(x){}}delete conns[from]}});
+      conns[from]=conn;onConnection(conn);
+      setTimeout(()=>{conn.open=true;conn._emit('open')},0);
+      return;
+    }
+    const c=conns[from];if(c)c._emit('data',m.d);
+  });
+  return H;
+ },
+ // 클라이언트(폰): 전광판에 연결. conn(open/data/close/error) 반환
+ join(code){
+  const T=t=>'gk26/'+code+'/'+t, id=_rid(12);
+  const conn=Object.assign(_emitter(),{id,open:false,cl:null,
+    send(d){if(this.cl){try{this.cl.publish(T('toTV'),JSON.stringify({from:id,t:'msg',d}))}catch(x){}}},
+    close(){this.open=false;try{this.cl&&this.cl.publish(T('toTV'),JSON.stringify({from:id,t:'bye'}));this.cl&&this.cl.end()}catch(x){}}});
+  let opened=false;
+  const cl=this._connect(
+    {topic:T('toTV'),payload:JSON.stringify({from:id,t:'bye'}),qos:0},
+    (c,first)=>{ conn.cl=c;
+      c.subscribe(T('toC/'+id),{qos:0});
+      c.subscribe(T('pres'),{qos:0});
+      c.publish(T('toTV'),JSON.stringify({from:id,t:'hello'}));  // 접속 알림(재연결 시에도 재전송)
+    },
+    ()=>{});
+  // 전광판 응답이 없으면 peer-unavailable로 판정(재시도는 상위에서)
+  conn._to=setTimeout(()=>{if(!opened)conn._emit('error',{type:'peer-unavailable'})},9000);
+  cl.on('message',(topic,buf)=>{
+    if(topic===T('pres')){ if(buf.toString()==='0'&&opened){conn.open=false;conn._emit('close')} return }
+    if(topic!==T('toC/'+id))return;
+    let m;try{m=JSON.parse(buf.toString())}catch(e){return}
+    if(m&&m.t==='_bye'){if(opened){conn.open=false;conn._emit('close')}return}
+    if(!opened){opened=true;clearTimeout(conn._to);conn.open=true;conn._emit('open')}
+    conn._emit('data',m);   // 전광판이 보낸 원본 메시지 객체
+  });
+  return conn;
+ }
+};
 /* 전광판(board.html) iframe 내장 모드: 셸과 postMessage로 표시/복귀 협상 */
 const IS_EMBED=!IS_CTRL&&PARAMS.get('embed')==='1'&&window.parent!==window;
 const EMB={
@@ -695,7 +773,7 @@ const TV={
 
  init(){
   show('tv-lobby');
-  this.makePeer();
+  this.startNet();
   this._lastBusy=Date.now();this._idleSent=false;
   if(IS_EMBED)$('#btn-demo').style.display='none';
   $('#btn-demo').onclick=()=>{AUD.ready();this.startDemo()};
@@ -727,39 +805,12 @@ const TV={
   setTimeout(()=>{try{c.close()}catch(e){}},350);
   this.onLeave(i);
  },
- makePeer(){
+ startNet(){ // 공용 MQTT 브로커에 호스트로 접속(접속 폰마다 onConn 호출)
   if(!this.code)this.code=String(1000+Math.random()*9000|0);
   this.peerReady=false;
-  try{this.peer=new Peer('asea-arena-'+this.code,PEER_OPT)}catch(e){return}
-  const p=this.peer;
-  p.on('open',()=>{this.peerReady=true;this.renderQR();EMB.sendUrl()}); // 등록 완료 후에만 QR 광고
-  p.on('connection',c=>this.onConn(c));
-  // 브로커 연결이 끊기면(무료 PeerJS 서버는 시간이 지나면 끊음) 즉시 재연결 — ID(코드) 유지
-  p.on('disconnected',()=>{ if(this.peer!==p)return; this.peerReady=false;
-    try{p.reconnect()}catch(e){ this.remakePeer(); } });
-  // 피어가 완전히 닫히면 새로 생성(코드 유지 시도)
-  p.on('close',()=>{ if(this.peer!==p)return; this.peerReady=false; this.remakePeer(); });
-  p.on('error',err=>{
-    if(this.peer!==p)return;
-    const t=String(err&&err.type||'');
-    if(t.includes('unavailable-id')){ this.code=String(1000+Math.random()*9000|0); this.remakePeer(); } // 코드 충돌 → 새 코드
-    else if(t==='network'||t==='server-error'||t==='socket-error'||t==='socket-closed'){
-      this.peerReady=false;
-      // 브로커/소켓 오류: 파괴하지 말고 재연결 시도(가능하면 코드 유지)
-      try{ if(!p.destroyed) p.reconnect(); else this.remakePeer(); }catch(e){ this.remakePeer(); }
-    }
-  });
-  // 워치독: 30초마다 피어 생존 점검 → 끊겼으면 재연결, 죽었으면 재생성
-  clearInterval(this._peerWatch);
-  this._peerWatch=setInterval(()=>{
-    const q=this.peer; if(!q){ this.makePeer(); return; }
-    if(q.destroyed){ this.remakePeer(); return; }
-    if(q.disconnected){ this.peerReady=false; try{q.reconnect()}catch(e){ this.remakePeer(); } }
-  },30000);
- },
- remakePeer(){
-  clearTimeout(this._remakeTid);
-  this._remakeTid=setTimeout(()=>{ try{this.peer&&this.peer.destroy()}catch(e){} this.peer=null; this.makePeer(); },1500);
+  this.net=NET.host(this.code,c=>this.onConn(c));
+  // 브로커 (재)연결될 때마다 QR/URL 갱신 — mqtt.js가 자동 재연결하므로 장시간 끊김도 자가 복구
+  this.net.onReady=()=>{ this.peerReady=true; this.renderQR(); EMB.sendUrl(); };
  },
  renderQR(){
   const box=$('#qr-lobby');box.innerHTML='';
@@ -1087,42 +1138,34 @@ const C={
   const code=this._code, self=this;
   const head=this._tries>1?`전광판에 다시 연결하는 중… (${this._tries}/4)`:'전광판에 연결하는 중…';
   this.stat(head);
-  let peer;
-  try{peer=new Peer(PEER_OPT)}catch(e){this.stat('이 브라우저는 지원되지 않습니다.<br>크롬/사파리 최신 버전으로 열어 주세요.');return}
-  this._peer=peer;
+  if(typeof mqtt==='undefined'){this.stat('연결 모듈을 불러오지 못했습니다.<br>인터넷 확인 후 아래 버튼으로 다시 시도해 주세요.');return}
   let done=false;
+  const c=NET.join(code); this.conn=c;
   // reason: 화면 하단에 남는 진단 문구(원인 특정용)
   const giveOrRetry=(finalMsg,reason)=>{
     if(done)return;done=true;
-    try{peer.destroy()}catch(e){}
+    try{c.close()}catch(e){}
     const diag=reason?`<br><span style="font-size:12px;color:#8ea0c0">사유: ${reason}</span>`:'';
     if(self._tries<4){ self.stat(head+diag); setTimeout(()=>self.connect(), 1200*self._tries); }
     else{ self.stat(finalMsg+diag); }
   };
   const to=setTimeout(()=>giveOrRetry(
     '전광판을 찾지 못했습니다.<br>전광판이 켜져 있는지 확인하고<br>아래 버튼으로 다시 시도해 주세요.','응답 없음(시간 초과)'),12000);
-  peer.on('open',()=>{
-    const c=peer.connect('asea-arena-'+code,{reliable:true});
-    c.on('open',()=>{done=true;clearTimeout(to);self._tries=0;self.conn=c;
-      $('#c-join-status').textContent='연결 완료!';
-      clearInterval(self.pingTid);
-      self.pingTid=setInterval(()=>self.send({t:'ping'}),4000)}); // 생존 신호
-    c.on('data',m=>self.onMsg(m));
-    c.on('close',()=>{clearInterval(self.pingTid);
-      self.stat('전광판과의 연결이 끊어졌습니다.<br>QR을 다시 스캔하거나 아래 버튼을 눌러 주세요.');show('c-join')});
-    c.on('error',(e)=>{clearTimeout(to);
-      giveOrRetry('전광판에 연결하지 못했습니다.<br>같은 와이파이에 연결 후 다시 시도해 주세요.','데이터연결 실패'+((e&&e.type)?'('+e.type+')':''))});
-  });
-  peer.on('error',(err)=>{
+  c.on('open',()=>{done=true;clearTimeout(to);self._tries=0;
+    $('#c-join-status').textContent='연결 완료!';
+    clearInterval(self.pingTid);
+    self.pingTid=setInterval(()=>self.send({t:'ping'}),4000)}); // 생존 신호
+  c.on('data',m=>self.onMsg(m));
+  c.on('close',()=>{clearInterval(self.pingTid);
+    self.stat('전광판과의 연결이 끊어졌습니다.<br>QR을 다시 스캔하거나 아래 버튼을 눌러 주세요.');show('c-join')});
+  c.on('error',(err)=>{
     clearTimeout(to);
     const t=(err&&err.type)||'unknown';
     let msg;
     if(t==='peer-unavailable')
       msg='전광판을 찾을 수 없습니다.<br>전광판 화면이 켜져 있는지 확인하고<br>QR을 다시 스캔해 주세요.';
-    else if(t==='browser-incompatible')
-      msg='이 브라우저는 지원되지 않습니다.<br>크롬/사파리 최신 버전으로 열어 주세요.';
     else
-      msg='연결이 불안정합니다.<br>전광판과 같은 와이파이에 연결한 뒤<br>QR을 다시 스캔해 주세요.';
+      msg='연결이 불안정합니다.<br>인터넷 상태를 확인한 뒤<br>QR을 다시 스캔해 주세요.';
     giveOrRetry(msg,t);
   });
  },
