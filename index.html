@@ -805,8 +805,12 @@ const TV={
   setTimeout(()=>{try{c.close()}catch(e){}},350);
   this.onLeave(i);
  },
+ newCode(){ // 5자리 영숫자(혼동 문자 0/O/1/I 제외) → 전광판마다 고유 코드
+  const A='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';let s='';
+  for(let i=0;i<5;i++)s+=A[Math.random()*A.length|0];return s;
+ },
  startNet(){ // 공용 MQTT 브로커에 호스트로 접속(접속 폰마다 onConn 호출)
-  if(!this.code)this.code=String(1000+Math.random()*9000|0);
+  if(!this.code)this.code=this.newCode();
   this.peerReady=false;
   this.net=NET.host(this.code,c=>this.onConn(c));
   // 브로커 (재)연결될 때마다 QR/URL 갱신 — mqtt.js가 자동 재연결하므로 장시간 끊김도 자가 복구
