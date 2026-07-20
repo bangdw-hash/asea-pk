@@ -2713,11 +2713,31 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
     else if(k==='grid'){ ctx.strokeStyle='rgba(55,224,139,.14)';ctx.lineWidth=1; for(let x=0;x<w;x+=64){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();} for(let y=0;y<h;y+=64){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();} }
   }
   function getBg(theme,w,h){ const key=theme+w+'x'+h; if(!bgCache[key]){const c=document.createElement('canvas');c.width=w;c.height=h;drawThemeBg(c.getContext('2d'),w,h,theme);bgCache[key]=c;} return bgCache[key]; }
+  /* 마스크 경계 선명화: MediaPipe 마스크는 저해상도·소프트 엣지라 그대로 확대하면 흐릿해진다.
+     출력 해상도로 키운 뒤 0/1로 임계처리(가장자리에 좁은 안티앨리어싱 밴드만 남김) → 누끼 경계가 또렷해짐.
+     alpha 인코딩·luminance 인코딩 어느 쪽이든 동작하도록 a*lum 조합을 사용한다. */
+  const maskCanvas=document.createElement('canvas'), maskCtx=maskCanvas.getContext('2d',{willReadFrequently:true});
+  function refineMask(mask,w,h){
+    if(maskCanvas.width!==w){ maskCanvas.width=w; maskCanvas.height=h; }
+    maskCtx.clearRect(0,0,w,h);
+    maskCtx.imageSmoothingEnabled=true; maskCtx.imageSmoothingQuality='high';
+    maskCtx.drawImage(mask,0,0,w,h);
+    const id=maskCtx.getImageData(0,0,w,h), d=id.data;
+    for(let i=0;i<d.length;i+=4){
+      const a=d[i+3], lum=d[i]*0.299+d[i+1]*0.587+d[i+2]*0.114;
+      let s=(a*lum)/65025;                                  // 0~1 (alpha·luminance 어느 인코딩이든 사람=1)
+      s = s<=0.42 ? 0 : s>=0.60 ? 1 : (s-0.42)/0.18;        // 좁은 밴드로 또렷한 경계 + 살짝의 AA
+      d[i]=d[i+1]=d[i+2]=255; d[i+3]=(s*255)|0;
+    }
+    maskCtx.putImageData(id,0,0);
+    return maskCanvas;
+  }
   function onSegResults(res){
     const w=segCanvas.width,h=segCanvas.height,ctx=segCtx;
     ctx.save(); ctx.clearRect(0,0,w,h);
+    ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high';
     try{
-      ctx.drawImage(res.segmentationMask,0,0,w,h);         // 사람 마스크
+      ctx.drawImage(refineMask(res.segmentationMask,w,h),0,0,w,h);  // 선명화한 사람 마스크
       ctx.globalCompositeOperation='source-in';
       ctx.drawImage(res.image,0,0,w,h);                    // 마스크 영역에 카메라 프레임
       ctx.globalCompositeOperation='destination-over';
@@ -2736,7 +2756,7 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
     if(typeof SelfieSegmentation==='undefined') return false;
     try{
       seg=new SelfieSegmentation({locateFile:f=>'https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1.1675465747/'+f});
-      seg.setOptions({modelSelection:1, selfieMode:false});
+      seg.setOptions({modelSelection:0, selfieMode:false});   // 0=일반(256²) → 세로 해상도 높아 경계 더 선명
       seg.onResults(onSegResults);
       return true;
     }catch(e){ seg=null; return false; }
