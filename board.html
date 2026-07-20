@@ -53,6 +53,10 @@
   --font-header-sub:var(--font-main);       /* 타이틀 아래 학교명 부제 */
   --font-slide-title:var(--font-main);      /* 슬라이드 제목 */
   --font-slide-body:var(--font-main);       /* 슬라이드 본문·사진 캡션·현황 라벨 */
+  --font-welcome-title:var(--font-slide-title); /* 환영 대상(윗줄) — 서체 시트에서 개별 지정 */
+  --font-welcome-body:var(--font-slide-body);   /* 환영 문구(아랫줄) — 서체 시트에서 개별 지정 */
+  --font-photo-title:var(--font-slide-title);   /* 캠퍼스 갤러리 제목 */
+  --font-photo-body:var(--font-slide-body);     /* 캠퍼스 갤러리 캡션 */
   --font-eyebrow:var(--font-display);       /* NOTICE·EVENT 등 상단 뱃지 */
   --font-clock:var(--font-mono);            /* 시계 숫자 */
   --font-side:var(--font-main);             /* 우측 주요 안내 */
@@ -178,8 +182,8 @@ body{
   background:linear-gradient(transparent,rgba(6,30,48,.85));
   color:#fff;
 }
-.slide.photo .cap h2{font-size:6.9vh;margin-bottom:1.1vh;color:#fff}   /* 캠퍼스 갤러리 서체 150% */
-.slide.photo .cap p{font-family:var(--font-slide-body);font-size:3.45vh;opacity:.92}  /* 캡션 150% */
+.slide.photo .cap h2{font-family:var(--font-photo-title);font-size:6.9vh;margin-bottom:1.1vh;color:#fff}   /* 캠퍼스 갤러리 서체 150% */
+.slide.photo .cap p{font-family:var(--font-photo-body);font-size:3.45vh;opacity:.92}  /* 캡션 150% */
 
 /* 유형별 자동 디자인 ─ 현황 */
 .statgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(16vw,1fr));gap:1.6vw;margin-top:1vh}
@@ -213,11 +217,11 @@ table.rent td.tm{font-family:var(--font-mono);white-space:nowrap}
 .slide.welcome .wc-plane{font-size:5.4vh;color:var(--deep);margin:1.8vh 0 1vh;
   animation:hover 3.2s ease-in-out infinite}
 @keyframes hover{50%{transform:translateY(-1.2vh)}}
-.slide.welcome h2{font-size:8.2vh;margin-bottom:0;line-height:1.2;color:var(--deep)}
+.slide.welcome h2{font-family:var(--font-welcome-title);font-size:8.2vh;margin-bottom:0;line-height:1.2;color:var(--deep)}
 .slide.welcome.multi h2{font-size:5.4vh;line-height:1.4}   /* 대상 여러 줄일 때 자동 축소 */
 .slide.welcome .wc-line{width:14vw;height:.5vh;border-radius:99px;margin:2.6vh auto;
   background:linear-gradient(90deg,transparent,var(--accent),transparent)}
-.slide.welcome .body{font-size:3.4vh;line-height:1.8}
+.slide.welcome .body{font-family:var(--font-welcome-body);font-size:3.4vh;line-height:1.8}
 .slide.welcome .meta{margin-top:4vh;letter-spacing:.2em;font-family:var(--font-display)}
 
 /* 공지·행사 QR 카드 */
@@ -1128,6 +1132,72 @@ function syncCaptions(){
   });
 }
 function capForUrl(url){ return PHOTO_CAPS[driveId(url)]||""; }
+
+/* ── 서체 시트 직접 읽기 (gviz) ─────────────────────────────
+   Apps Script가 서체표를 뭉개도 화면이 정확히 반영되도록, '서체' 시트를
+   구역 라벨(A열) 기준으로 직접 읽어 구역별 서체(B열)·크기%(C열)·문구(D열)를 적용한다.
+   · 문구(D열)는 '간판 제목/부제' 두 구역에서만 실제 표시 텍스트로 사용
+   · 라벨은 공백 제거 후 부분일치 → 사용자가 조금 다르게 적어도 인식 */
+let FONTS_G=null, SIZES_G=null, HDR_MAIN=null, HDR_SUB=null;
+const FKEYS=[
+  [/간판제목|상단제목|헤더제목|메인문구|간판메인|타이틀/, "header"],
+  [/간판부제|상단부제|헤더부제|학교명|부제/,             "headerSub"],
+  [/환영대상|환영윗줄|초청대상|^대상$/,                  "welcomeTitle"],
+  [/환영문구|환영아랫줄|환영본문|^문구$/,                "welcomeBody"],
+  [/슬라이드제목|안내제목/,                              "slideTitle"],
+  [/슬라이드본문|슬라이드내용|안내본문/,                 "slideBody"],
+  [/갤러리제목|사진제목/,                                "photoTitle"],
+  [/갤러리캡션|사진캡션|캡션/,                           "photoBody"],
+  [/뱃지|배지|노티스|이벤트|badge|eyebrow/i,             "eyebrow"],
+  [/시계|시각|클럭|clock/i,                              "clock"],
+  [/우측안내|주요안내|사이드|안내/,                      "side"],
+  [/하단문구|흐름문구|티커|스크롤|ticker/i,              "ticker"],
+  [/영문표기|영문|라틴|latin/i,                          "latin"],
+];
+function fontKey(label){ for(const [re,key] of FKEYS) if(re.test(label)) return key; return ""; }
+function syncFonts(){
+  gvizLoad("서체", rows=>{
+    if(!rows) return;                     // 시트 없거나 읽기 실패 → 기존(API/기본) 유지
+    const F={}, S={}; let hM=null, hS=null, hit=false;
+    rows.forEach(r=>{
+      const label=String(r[0]||"").replace(/\s/g,"");
+      if(!label) return;
+      const key=fontKey(label); if(!key) return;
+      hit=true;
+      const font=String(r[1]!=null?r[1]:"").trim();
+      const size=String(r[2]!=null?r[2]:"").trim();
+      const text=String(r[3]!=null?r[3]:"");   // 문구(줄바꿈 원문 보존)
+      if(font) F[key]=font;
+      if(size) S[key]=size;
+      if(key==="header"    && text.trim()!=="") hM=text;
+      if(key==="headerSub" && text.trim()!=="") hS=text;
+    });
+    if(!hit) return;                      // 인식된 구역이 하나도 없으면 무시
+    FONTS_G=F; SIZES_G=S;
+    if(hM!=null) HDR_MAIN=hM;
+    if(hS!=null) HDR_SUB=hS;
+    applyFonts(LAST.fonts);
+    applySizes(LAST_DATA?LAST_DATA.fontSizes:null);
+    applyHeaderText();
+  });
+}
+/* 간판(상단) 메인 문구·부제 텍스트를 시트값으로 교체.
+   메인 문구는 '|' 로 나누면 앞=기본색, 뒤=강조색(주황)으로 표시된다.
+   예)  ASEA AVIATION | OCCUPATIONAL TRAINING COLLEGE */
+function applyHeaderText(){
+  if(HDR_MAIN!=null){
+    const h1=document.querySelector(".header h1");
+    if(h1){
+      const p=HDR_MAIN.split("|");
+      if(p.length>1) h1.innerHTML=esc(p[0].trim())+' <span style="color:var(--accent)">'+esc(p.slice(1).join("|").trim())+"</span>";
+      else h1.textContent=HDR_MAIN.trim();
+    }
+  }
+  if(HDR_SUB!=null){
+    const sub=document.querySelector(".header .sub");
+    if(sub) sub.textContent=HDR_SUB.trim();
+  }
+}
 
 /* ── 테마 시나리오 (관리자 시트 '설정'에서 선택) ── */
 const THEMES = {
@@ -2121,34 +2191,45 @@ function makeQRs(){
 }
 function esc(s){return String(s??"").replace(/[&<>"]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]))}
 
-/* 시트 '서체' 제어판 → 화면 구역별 서체 적용 (빈칸=HTML 기본값 유지) */
+/* 시트 '서체' 제어판 → 화면 구역별 서체 적용 (빈칸=HTML 기본값 복귀)
+   · gviz로 직접 읽은 FONTS_G가 있으면 그것을 우선(구역별로 비어 있으면 API값→기본값) */
 function applyFonts(f){
-  if(!f) return;
+  const g=FONTS_G||{}, a=f||{};
   const map={header:"--font-header",headerSub:"--font-header-sub",
              slideTitle:"--font-slide-title",slideBody:"--font-slide-body",
+             welcomeTitle:"--font-welcome-title",welcomeBody:"--font-welcome-body",
+             photoTitle:"--font-photo-title",photoBody:"--font-photo-body",
              eyebrow:"--font-eyebrow",clock:"--font-clock",
              side:"--font-side",ticker:"--font-ticker",latin:"--font-latin"};
+  const S=document.documentElement.style;
   for(const k in map){
-    const v=String(f[k]||"").trim();
-    if(v) document.documentElement.style.setProperty(map[k],`'${v}', var(--font-main)`);
+    const v=(String(g[k]||"").trim()||String(a[k]||"").trim());
+    if(v) S.setProperty(map[k],`'${v}', var(--font-main)`);
+    else  S.removeProperty(map[k]);   // 비우면 :root 기본 서체로 복귀
   }
 }
-/* 서체 시트 C열(크기%) → 구역별 글자 크기 조절 (100=기본, 50~200 허용) */
+/* 서체 시트 C열(크기%) → 구역별 글자 크기 조절 (100=기본, 50~200 허용)
+   · gviz로 직접 읽은 SIZES_G가 있으면 그것을 우선(구역별로 비어 있으면 API값)
+   · 키를 여러 개 넘기면 앞 키가 비었을 때 뒤 키로 대체(환영 대상→슬라이드 제목 등) */
 function applySizes(sz){
   let el=document.getElementById("sizeCtl");
   if(!el){el=document.createElement("style");el.id="sizeCtl";document.head.appendChild(el);}
-  if(!sz){el.textContent="";return;}
-  const k=key=>Math.min(200,Math.max(50,Number(sz[key])||100))/100;
+  const g=SIZES_G||{}, a=sz||{};
+  if(!SIZES_G && !sz){el.textContent="";return;}
+  const clamp=v=>Math.min(200,Math.max(50,Number(v)||100))/100;
+  const kf=(...keys)=>{ for(const key of keys){ const raw=(g[key]!=null&&g[key]!=="")?g[key]:a[key];
+                          if(raw!=null&&String(raw).trim()!=="") return clamp(raw); } return 1; };
   const R=[];
-  const add=(sel,base,key)=>{const f=k(key); if(f!==1) R.push(`${sel}{font-size:${(base*f).toFixed(2)}vh}`);};
+  const add=(sel,base,...keys)=>{const f=kf(...keys); if(f!==1) R.push(`${sel}{font-size:${(base*f).toFixed(2)}vh}`);};
   add(".header h1",2,"header");
   add(".header .sub",1.5,"headerSub");
   add(".slide h2",6.4,"slideTitle");
-  add(".slide.welcome h2",8.2,"slideTitle");
+  add(".slide.welcome h2",8.2,"welcomeTitle","slideTitle");
+  add(".slide.welcome.multi h2",5.4,"welcomeTitle","slideTitle");
   add(".slide .body",3,"slideBody");
-  add(".slide.photo .cap h2",6.9,"slideTitle");   /* 캠퍼스 갤러리 제목 150% (서체 배율 유지) */
-  add(".slide.photo .cap p",3.45,"slideBody");    /* 캠퍼스 갤러리 캡션 150% */
-  add(".slide.welcome .body",3.4,"slideBody");
+  add(".slide.photo .cap h2",6.9,"photoTitle","slideTitle");   /* 캠퍼스 갤러리 제목 */
+  add(".slide.photo .cap p",3.45,"photoBody","slideBody");     /* 캠퍼스 갤러리 캡션 */
+  add(".slide.welcome .body",3.4,"welcomeBody","slideBody");
   add(".slide .eyebrow",1.9,"eyebrow");
   add(".clockcard .time",8.4,"clock");
   add(".clockcard .time .sec",4.4,"clock");
@@ -2259,7 +2340,7 @@ async function sync(){
 sync();
 setInterval(sync, CONFIG.POLL_SEC*1000);
 /* 시트 직접 읽기: 배너 표시여부(환영!배너Y/N) + 사진 캡션 매핑 */
-function gvizSync(){ syncBanner(); syncCaptions(); }
+function gvizSync(){ syncBanner(); syncCaptions(); syncFonts(); }
 gvizSync();
 setInterval(gvizSync, CONFIG.POLL_SEC*1000);
 /* 새벽 4시 자동 새로고침(장시간 구동 시 메모리 정리) */
