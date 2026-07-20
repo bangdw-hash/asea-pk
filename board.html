@@ -1088,6 +1088,7 @@ function syncBanner(){
       else if(a==="표시초") V.sec=b.trim();
       else if(a.indexOf("시작")===0) V.start=b.trim();
       else if(a.indexOf("종료")===0) V.end=b.trim();
+      else if(a.indexOf("겹침")===0) V.overlap=b.trim().toUpperCase();  // 겹침(Y/N)=사이사이 삽입
     });
     // 배너 표시
     const banEl=document.getElementById("gk-banner");
@@ -1098,11 +1099,12 @@ function syncBanner(){
     const now=Date.now(), st=parseDT(V.start), en=parseDT(V.end);
     const inWindow = (st==null||now>=st) && (en==null||now<=en);
     const active = (V.on==="Y") && inWindow;
-    const only = /고정|환영만/.test(V.mode||"");        // 모드 고정/환영만 → 환영만 표시(순환=슬라이드와 함께)
-    WELCOME_CFG = active ? {active:true, only, slide:{type:"환영",
+    const only = /고정|환영만/.test(V.mode||"");        // 모드 고정/환영만 → 환영만 표시
+    const interleave = V.overlap==="Y";                 // 겹침=Y → 모든 슬라이드 사이사이에 삽입
+    WELCOME_CFG = active ? {active:true, only, interleave, slide:{type:"환영",
         title:V.title||"", body:V.body||"", sec:(Number(V.sec)||10)}} : {active:false};
-    // 설정이 바뀌면(범위 진입/이탈, 게시 토글, 문구 변경) 다시 그린다
-    const sig=[WELCOME_CFG.active, only, V.title, V.body, V.sec].join("|");
+    // 설정이 바뀌면(범위 진입/이탈, 게시·겹침 토글, 문구 변경) 다시 그린다
+    const sig=[WELCOME_CFG.active, only, interleave, V.title, V.body, V.sec].join("|");
     if(sig!==WELCOME_SIG){ WELCOME_SIG=sig; if(LAST_DATA) renderAll(LAST_DATA); }
   });
 }
@@ -2178,10 +2180,17 @@ function renderAll(data){
   slides.forEach(s=>{ s.hold = s.hold===true || String(s.sec).trim()==="계속"; });
   const holds=slides.filter(s=>s.hold);
   if(holds.length) slides=[holds[0]];
-  /* 환영 슬라이드 주입: 게시=Y + 시간범위 내(gviz 판정). 순환=슬라이드와 함께, 고정=환영만 */
+  /* 환영 슬라이드 주입: 게시=Y + 시간범위 내(gviz 판정)
+     · 겹침=Y  → 모든 슬라이드 사이사이에 환영 삽입 (환영→S1→환영→S2→…)
+     · 모드 고정/환영만 → 환영만
+     · 그 외(순환) → 맨 앞에 한 번 넣어 함께 순환 */
   if(WELCOME_CFG && WELCOME_CFG.active){
-    if(WELCOME_CFG.only) slides=[WELCOME_CFG.slide];
-    else slides.unshift(WELCOME_CFG.slide);
+    const w=WELCOME_CFG.slide;
+    if(WELCOME_CFG.only) slides=[w];
+    else if(WELCOME_CFG.interleave){
+      if(!slides.length) slides=[w];
+      else { const woven=[]; slides.forEach(s=>{ woven.push(w); woven.push(s); }); slides=woven; }
+    } else slides.unshift(w);
   }
   const box=document.getElementById("slidebox");
   box.querySelectorAll(".slide").forEach(e=>e.remove());
