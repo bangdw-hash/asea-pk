@@ -1044,7 +1044,58 @@ body.theme-tour .slide h2{text-shadow:none}
 const CONFIG = {
   API_URL: "https://script.google.com/macros/s/AKfycbwIETfWK5fB1D6O0TUDP1Nq7hxiBuvO_AX9gK6EaBAVv7Hddjj1ppyf2x04ywyS7Fo/exec",
   POLL_SEC: 30,         // 관리자 변경사항 확인 주기(초)
+  SHEET_ID: "1Wez5j_CbgdQkAr1AGq4kkl_xYD1axX_LMBIOFGspnTI",  // 구글시트 직접 읽기용(배너·사진캡션)
 };
+
+/* ── 구글시트 직접 읽기(gviz JSONP) ── Apps Script를 거치지 않고 시트를 그대로 읽는다.
+   gviz는 CORS 헤더가 없어 fetch는 막히지만, script 태그(JSONP)는 CORS 무관하게 동작. */
+function gvizLoad(sheet, cb){
+  if(!CONFIG.SHEET_ID){cb(null);return;}
+  const name="__gv"+(gvizLoad._n=(gvizLoad._n||0)+1);
+  const s=document.createElement("script"); let done=false;
+  const clean=()=>{ try{delete window[name]}catch(e){window[name]=undefined} if(s.parentNode)s.parentNode.removeChild(s); };
+  window[name]=res=>{ done=true;
+    try{ const rows=((res&&res.table&&res.table.rows)||[]).map(r=>(r.c||[]).map(c=>c&&c.v!=null?c.v:"")); cb(rows); }
+    catch(e){ cb(null); } clean();
+  };
+  s.onerror=()=>{ if(!done){cb(null);clean();} };
+  s.src="https://docs.google.com/spreadsheets/d/"+CONFIG.SHEET_ID+"/gviz/tq?headers=0&sheet="+
+        encodeURIComponent(sheet)+"&tqx=responseHandler:"+name+"&t="+Date.now();
+  document.head.appendChild(s);
+  setTimeout(()=>{ if(!done){cb(null);clean();} },15000);
+}
+function driveId(url){ const m=String(url||"").match(/[?&]id=([\w-]+)|\/d\/([\w-]+)/); return m?(m[1]||m[2]):""; }
+
+/* 배너(골든킥) 표시 여부: 환영 시트 '배너(Y/N)' 셀(B8) 값으로 제어 */
+function syncBanner(){
+  gvizLoad("환영", rows=>{
+    if(!rows) return;                                  // 읽기 실패 시 현재 상태 유지
+    let val=null;
+    rows.forEach(r=>{ if(String(r[0]||"").replace(/\s/g,"").indexOf("배너")===0) val=String(r[1]||"").trim().toUpperCase(); });
+    const ban=document.getElementById("gk-banner");
+    if(ban && val!=null) ban.style.display=(val==="Y")?"":"none";
+  });
+}
+
+/* 사진 캡션: 슬라이드 시트의 '사진' 행에서 이미지ID→캡션(내용) 매핑을 만들어
+   각 사진에 해당 줄 캡션을 붙인다(Apps Script가 캡션을 뭉개는 문제 우회). */
+const PHOTO_CAPS={};
+function syncCaptions(){
+  gvizLoad("슬라이드", rows=>{
+    if(!rows) return;
+    rows.forEach(r=>{
+      // [사용,유형,제목,내용,이미지URL,...]
+      if(String(r[1]||"").trim()!=="사진") return;
+      if(String(r[0]||"").trim().toUpperCase()!=="Y") return;
+      const cap=String(r[3]||"").trim();
+      // 한 행에 이미지가 여러 줄이면 캡션도 줄 단위로 대응, 아니면 전체 캡션
+      const urls=String(r[4]||"").split(/\n/).map(x=>x.trim()).filter(Boolean);
+      const caps=cap.split(/\n/).map(x=>x.trim());
+      urls.forEach((u,i)=>{ const id=driveId(u); if(id) PHOTO_CAPS[id]=caps[i]!=null&&caps[i]!==""?caps[i]:cap; });
+    });
+  });
+}
+function capForUrl(url){ return PHOTO_CAPS[driveId(url)]||""; }
 
 /* ── 테마 시나리오 (관리자 시트 '설정'에서 선택) ── */
 const THEMES = {
@@ -1959,9 +2010,12 @@ function slideHTML(s){
     const ph=(s.photos&&s.photos.length?s.photos:[{url:s.img||"",sec:Number(s.sec)||8}]);
     const ims=ph.map((p,i)=>`<img class="ph${i===0?" on":""}" src="${p.url}" alt="">`).join("");
     const ct=ph.length>1?`<div class="phct">1 / ${ph.length}</div>`:"";
+    // 사진별 캡션: 시트에서 읽은 이미지↔캡션 매핑 우선, 없으면 body를 줄 단위로
+    const bodyLns=String(s.body||"").split(/\n/).map(x=>x.trim()).filter(Boolean);
+    const cap0=capForUrl(ph[0].url)||bodyLns[0]||"";
     return `<div class="slide photo" data-type="사진">
       ${ims}${ct}
-      <div class="cap"><h2>${esc(s.title)}</h2><p>${esc(s.body||"")}</p></div>
+      <div class="cap"><h2>${esc(s.title)}</h2><p class="capln">${esc(cap0)}</p></div>
     </div>`;
   }
   if(s.type==="현황"){
@@ -2114,10 +2168,13 @@ function next(){
 }
 /* 한 사진 슬라이드 안에서 여러 장을 각자 지정된 초만큼 순환 */
 function startPhotos(el,s){
-  const imgs=el.querySelectorAll(".ph"), ct=el.querySelector(".phct");
+  const imgs=el.querySelectorAll(".ph"), ct=el.querySelector(".phct"), capEl=el.querySelector(".capln");
+  const bodyLns=String(s.body||"").split(/\n/).map(x=>x.trim()).filter(Boolean);
   let j=0;
   const show=()=>{ imgs.forEach((im,k)=>im.classList.toggle("on",k===j));
-                   if(ct) ct.textContent=(j+1)+" / "+s.photos.length; };
+                   if(ct) ct.textContent=(j+1)+" / "+s.photos.length;
+                   // 사진에 맞춰 캡션 갱신(시트 매핑 → body 줄 → 빈값)
+                   if(capEl) capEl.textContent=capForUrl(s.photos[j].url)||bodyLns[j]||bodyLns[0]||""; };
   const step=()=>{
     j++;
     if(j>=s.photos.length){
@@ -2147,6 +2204,10 @@ async function sync(){
 }
 sync();
 setInterval(sync, CONFIG.POLL_SEC*1000);
+/* 시트 직접 읽기: 배너 표시여부(환영!배너Y/N) + 사진 캡션 매핑 */
+function gvizSync(){ syncBanner(); syncCaptions(); }
+gvizSync();
+setInterval(gvizSync, CONFIG.POLL_SEC*1000);
 /* 새벽 4시 자동 새로고침(장시간 구동 시 메모리 정리) */
 setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) location.reload();},60000);
 </script>
