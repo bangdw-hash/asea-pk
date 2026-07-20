@@ -1067,19 +1067,43 @@ function gvizLoad(sheet, cb){
 }
 function driveId(url){ const m=String(url||"").match(/[?&]id=([\w-]+)|\/d\/([\w-]+)/); return m?(m[1]||m[2]):""; }
 
-/* 환영 시트 직접 읽기: 배너(Y/N) 표시여부 + 대상/문구(줄바꿈 보존) */
-let WELCOME_TITLE=null, WELCOME_BODY=null;
+/* 환영 시트 직접 읽기: 배너(Y/N) + 환영 슬라이드(게시/모드/시간범위/대상/문구/표시초)
+   Apps Script가 환영을 순환에 안 넣고 대상 줄바꿈도 뭉개므로, 여기서 직접 판정·주입한다. */
+let WELCOME_TITLE=null, WELCOME_BODY=null, WELCOME_CFG=null, WELCOME_SIG="";
+function parseDT(s){
+  const m=String(s||"").trim().match(/(\d{4})-(\d{1,2})-(\d{1,2})(?:[ T]+(\d{1,2}):(\d{2}))?/);
+  return m ? new Date(+m[1],+m[2]-1,+m[3],+(m[4]||0),+(m[5]||0)).getTime() : null;
+}
 function syncBanner(){
   gvizLoad("환영", rows=>{
     if(!rows) return;                                  // 읽기 실패 시 현재 상태 유지
-    let val=null;
-    rows.forEach(r=>{ const a=String(r[0]||"").replace(/\s/g,"");
-      if(a.indexOf("배너")===0) val=String(r[1]||"").trim().toUpperCase();
-      else if(a==="대상") WELCOME_TITLE=String(r[1]||"");   // Alt+Enter 줄바꿈(\n) 그대로 보존
-      else if(a==="문구") WELCOME_BODY=String(r[1]||"");
+    const V={};   // 라벨→값
+    let ban=null;
+    rows.forEach(r=>{ const a=String(r[0]||"").replace(/\s/g,""); const b=String(r[1]!=null?r[1]:"");
+      if(a.indexOf("배너")===0) ban=b.trim().toUpperCase();
+      else if(a.indexOf("게시")===0) V.on=b.trim().toUpperCase();
+      else if(a==="대상") V.title=b;                   // Alt+Enter 줄바꿈(\n) 보존
+      else if(a==="문구") V.body=b;
+      else if(a==="모드") V.mode=b.trim();
+      else if(a==="표시초") V.sec=b.trim();
+      else if(a.indexOf("시작")===0) V.start=b.trim();
+      else if(a.indexOf("종료")===0) V.end=b.trim();
     });
-    const ban=document.getElementById("gk-banner");
-    if(ban && val!=null) ban.style.display=(val==="Y")?"":"none";
+    // 배너 표시
+    const banEl=document.getElementById("gk-banner");
+    if(banEl && ban!=null) banEl.style.display=(ban==="Y")?"":"none";
+    // 환영 슬라이드 판정: 게시=Y + 시작/종료 시간범위 내(범위 밖이면 게시 Y여도 N처럼 미표시)
+    WELCOME_TITLE = V.title!=null?V.title:WELCOME_TITLE;
+    WELCOME_BODY  = V.body!=null?V.body:WELCOME_BODY;
+    const now=Date.now(), st=parseDT(V.start), en=parseDT(V.end);
+    const inWindow = (st==null||now>=st) && (en==null||now<=en);
+    const active = (V.on==="Y") && inWindow;
+    const only = /고정|환영만/.test(V.mode||"");        // 모드 고정/환영만 → 환영만 표시(순환=슬라이드와 함께)
+    WELCOME_CFG = active ? {active:true, only, slide:{type:"환영",
+        title:V.title||"", body:V.body||"", sec:(Number(V.sec)||10)}} : {active:false};
+    // 설정이 바뀌면(범위 진입/이탈, 게시 토글, 문구 변경) 다시 그린다
+    const sig=[WELCOME_CFG.active, only, V.title, V.body, V.sec].join("|");
+    if(sig!==WELCOME_SIG){ WELCOME_SIG=sig; if(LAST_DATA) renderAll(LAST_DATA); }
   });
 }
 
@@ -2133,7 +2157,9 @@ function applySizes(sz){
   add(".clockcard .day",1.9,"latin");
   el.textContent=R.join("\n");
 }
+let LAST_DATA=null;
 function renderAll(data){
+  LAST_DATA=data;             // 환영 설정 변경 시 재렌더용
   LAST.theme=String(data.theme||"하늘").trim();
   LAST.schedule=String(data.schedule||"");
   LAST.fxMode=String(data.fxMode||"자동");
@@ -2147,11 +2173,16 @@ function renderAll(data){
   appliedTheme="";           // 강제 재적용
   applyThemeSmart();
   applySizes(data.fontSizes);
-  slides=data.slides||[];
+  slides=(data.slides||[]).slice().filter(s=>s.type!=="환영");  // API가 준 환영은 제거(여기서 직접 주입)
   /* 표시초에 '계속' 입력 시 해당 슬라이드만 고정 게시 (여러 개면 최상단 행 우선) */
   slides.forEach(s=>{ s.hold = s.hold===true || String(s.sec).trim()==="계속"; });
   const holds=slides.filter(s=>s.hold);
   if(holds.length) slides=[holds[0]];
+  /* 환영 슬라이드 주입: 게시=Y + 시간범위 내(gviz 판정). 순환=슬라이드와 함께, 고정=환영만 */
+  if(WELCOME_CFG && WELCOME_CFG.active){
+    if(WELCOME_CFG.only) slides=[WELCOME_CFG.slide];
+    else slides.unshift(WELCOME_CFG.slide);
+  }
   const box=document.getElementById("slidebox");
   box.querySelectorAll(".slide").forEach(e=>e.remove());
   slides.forEach(s=>box.insertAdjacentHTML("afterbegin",slideHTML(s)));
