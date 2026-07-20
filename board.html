@@ -2684,13 +2684,15 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
   const stage=$('pb-stage'),video=$('pb-video'),btextEl=$('pb-btext'),bdateEl=$('pb-bdate'),
         countEl=$('pb-count'),flashEl=$('pb-flash'),msgEl=$('pb-msg'),card=$('pb-card');
   const DEFAULT_TEXT='아세아항공직업전문학교 방문을 환영합니다';
-  const BOOTH={host:null,conn:null,code:null,stream:null,active:false,exitT:null,shooting:false,sec:3,lang:'ko',bg:false,dateT:null,capText:'',capDate:''};
+  const BOOTH={host:null,conn:null,code:null,stream:null,active:false,exitT:null,shooting:false,sec:3,lang:'ko',bg:false,bgimg:'',dateT:null,capText:'',capDate:''};
   window.PB_ON=false;
 
-  /* ── 배경 합성(누끼): MediaPipe Selfie Segmentation — 사람만 분리해 테마 배경 위에 합성 ──
-     로드 실패 시 조용히 실제 카메라로 폴백(부스 정상 동작). */
+  /* ── 배경 합성(누끼): MediaPipe Selfie Segmentation — 사람만 분리해 배경 위에 합성 ──
+     · 첫 합성 프레임이 도착해야 합성 화면으로 전환(그 전엔 실제 카메라 유지)
+     · 5초 내 프레임 없으면 사양 미달로 보고 실제 카메라로 폴백 → 절대 검은 화면 안 됨 */
   const segCanvas=$('pb-seg'), segCtx=segCanvas.getContext('2d');
-  let seg=null, segBusy=false, segRAF=null; const bgCache={};
+  let seg=null, segBusy=false, segRAF=null, segGotFrame=false, segWatch=null; const bgCache={};
+  function segBgKey(){ return BOOTH.bgimg || BOOTH.theme || 'navy'; }
   const PB_PHOTOBG={
     navy:['#1b3f68','#071426','stars'], a320:['#0c3345','#04121c','glow'],
     runway:['#241f14','#05040a','lights'], tower:['#0a3a26','#02120b','grid'],
@@ -2719,8 +2721,13 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
       ctx.globalCompositeOperation='source-in';
       ctx.drawImage(res.image,0,0,w,h);                    // 마스크 영역에 카메라 프레임
       ctx.globalCompositeOperation='destination-over';
-      ctx.drawImage(getBg(BOOTH.theme||'navy',w,h),0,0,w,h);// 뒤에 테마 배경
+      ctx.drawImage(getBg(segBgKey(),w,h),0,0,w,h);        // 뒤에 선택 배경(없으면 테마)
       ctx.globalCompositeOperation='source-over';
+      if(!segGotFrame && BOOTH.bg){                        // 첫 합성 프레임 → 이제 합성 화면으로 전환
+        segGotFrame=true; stage.classList.add('seg');
+        if(segWatch){ clearTimeout(segWatch); segWatch=null; }
+        if(BOOTH.active) msg('🧑 배경 합성 ON · 문구 적고 촬영하세요');
+      }
     }catch(e){}
     ctx.restore();
   }
@@ -2739,16 +2746,26 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
     if(seg && video.readyState>=2 && !segBusy){ segBusy=true; try{ await seg.send({image:video}); }catch(e){} segBusy=false; }
     segRAF=requestAnimationFrame(segFrame);
   }
+  function segFallback(reason){   // 합성 불가 → 실제 카메라 유지
+    BOOTH.bg=false; segGotFrame=false; stage.classList.remove('seg');
+    if(segRAF){ cancelAnimationFrame(segRAF); segRAF=null; }
+    if(segWatch){ clearTimeout(segWatch); segWatch=null; }
+    if(BOOTH.active) msg((reason||'배경 합성 미지원')+' · 실제 배경으로 촬영하세요');
+  }
   function setBg(on){
     if(on){
       if(segCanvas.width!==1280){ segCanvas.width=1280; segCanvas.height=720; }
-      if(!initSeg()){ msg('배경 합성을 쓸 수 없습니다(모델 로드 실패) · 실제 배경으로 촬영'); BOOTH.bg=false; stage.classList.remove('seg'); return; }
-      BOOTH.bg=true; stage.classList.add('seg');
+      if(!initSeg()){ segFallback('배경 합성 불가(모델 로드 실패)'); return; }
+      BOOTH.bg=true; segGotFrame=false;
+      // 아직 'seg' 클래스 안 붙임 → 첫 합성 프레임 도착 시 onSegResults에서 전환
       if(!segRAF) segFrame();
-      msg('🧑 배경 합성 ON · 문구 적고 촬영하세요');
+      msg('🧑 배경 합성 준비 중…');
+      if(segWatch) clearTimeout(segWatch);
+      segWatch=setTimeout(()=>{ if(BOOTH.bg && !segGotFrame) segFallback('배경 합성 미지원(사양/네트워크)'); }, 6000);
     }else{
-      BOOTH.bg=false; stage.classList.remove('seg');
+      BOOTH.bg=false; segGotFrame=false; stage.classList.remove('seg');
       if(segRAF){ cancelAnimationFrame(segRAF); segRAF=null; }
+      if(segWatch){ clearTimeout(segWatch); segWatch=null; }
       if(BOOTH.active) msg('휴대폰에서 문구를 적고 촬영하세요 📸');
     }
   }
@@ -2825,6 +2842,7 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
     else if(m.t==='theme') applyTheme(m.id);
     else if(m.t==='lang') applyLang(m.v);
     else if(m.t==='bg') setBg(!!m.on);
+    else if(m.t==='bgimg') BOOTH.bgimg = (m.id && m.id!=='theme') ? m.id : '';
     else if(m.t==='sec') BOOTH.sec=Math.max(1,Math.min(30,Number(m.sec)||3));
     else if(m.t==='shoot') doShoot(conn, Number(m.sec)||BOOTH.sec||3);
     else if(m.t==='quit') exitBooth();
@@ -2917,7 +2935,7 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
   function drawComposite(ctx,cw,ch){
     const acc=(BOOTH.themeObj&&BOOTH.themeObj.acc)||'#ffb400';
     // 배경 합성 ON이면 합성 캔버스(사람+테마 배경)를, 아니면 실제 카메라를 프레임에 채움
-    const useSeg = BOOTH.bg && segCanvas.width>1;
+    const useSeg = BOOTH.bg && segGotFrame && segCanvas.width>1;
     const src = useSeg ? segCanvas : video;
     ctx.fillStyle='#071426'; ctx.fillRect(0,0,cw,ch);
     const fx=cw*0.03, fy=ch*0.045, fw=cw-2*fx, fh=ch-2*fy, fr=Math.round(ch*0.04);
