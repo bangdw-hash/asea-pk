@@ -32,6 +32,15 @@
     box-shadow:0 10px 26px rgba(46,166,216,.35);letter-spacing:.02em;transition:transform .08s}
   .shoot:active{transform:scale(.98)}
   .shoot:disabled{filter:grayscale(.5) brightness(.8);box-shadow:none}
+  .segs{display:flex;gap:8px}
+  .seg{flex:1;padding:14px 0;border:1px solid var(--line);border-radius:13px;background:#0c162a;
+    color:var(--dim);font-size:16px;font-weight:800;transition:.1s}
+  .seg.on{background:var(--acc);color:#06213a;border-color:var(--acc)}
+  #themes{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  #themes .seg{flex:none;padding:13px 0;font-size:15px}
+  .quit{width:100%;margin-top:4px;border:1px solid var(--line);border-radius:15px;padding:14px;
+    background:transparent;color:var(--dim);font-size:15px;font-weight:700}
+  .quit:active{background:#16233c}
   .big{font-size:15px;color:var(--dim);text-align:center;padding:10px}
   /* 촬영 결과 */
   #result{display:none;gap:14px;flex-direction:column}
@@ -70,11 +79,24 @@
   <div id="ctrl">
     <div class="card">
       <label>화면에 넣을 문구</label>
-      <textarea id="cap" maxlength="60" placeholder="예) ASEA 방문 기념 · 2026.07.20 🎉"></textarea>
-      <div class="hint">입력하면 전광판 하단에 실시간으로 표시됩니다. (최대 60자)</div>
+      <textarea id="cap" maxlength="40" placeholder="예) ASEA 방문 기념 🎉"></textarea>
+      <div class="hint">아래 배너에 표시됩니다. 날짜·학교명은 자동으로 들어가요. (최대 40자)</div>
+    </div>
+    <div class="card">
+      <label>배경 테마</label>
+      <div id="themes"></div>
+    </div>
+    <div class="card">
+      <label>촬영 카운트다운</label>
+      <div class="segs" id="secs">
+        <button class="seg on" data-s="3">3초</button>
+        <button class="seg" data-s="5">5초</button>
+        <button class="seg" data-s="10">10초</button>
+      </div>
     </div>
     <button class="shoot" id="shoot">📸 촬영하기</button>
-    <div class="big" id="ctrlHint">문구를 적고 촬영하기를 누르면 3·2·1 카운트 후 찍혀요.</div>
+    <button class="quit" id="quit">✕ 촬영 그만두고 메인으로</button>
+    <div class="big" id="ctrlHint">문구를 적고 촬영하기를 누르면 카운트 후 찍혀요.</div>
   </div>
 
   <!-- 결과 -->
@@ -142,9 +164,24 @@ function connect(code){
   conn.on('error',e=>{ setStatus('전광판을 찾지 못했습니다 · 코드 확인',' off'); showCodeInput(); });
   conn.on('data',onData);
 }
+let THEME='navy';
+function renderThemes(list){
+  const box=$('themes'); if(!box)return; box.innerHTML='';
+  const arr=(list&&list.length)?list:[{id:'navy',name:'ASEA 네이비'},{id:'a320',name:'A320 코크핏'},{id:'runway',name:'활주로'},{id:'tower',name:'관제탑'}];
+  arr.forEach(t=>{
+    const b=document.createElement('button');
+    b.className='seg'+(t.id===THEME?' on':''); b.textContent=t.name; b.dataset.id=t.id;
+    b.addEventListener('click',()=>{ THEME=t.id;
+      box.querySelectorAll('.seg').forEach(x=>x.classList.remove('on')); b.classList.add('on');
+      if(conn&&conn.open) conn.send({t:'theme',id:t.id}); });
+    box.appendChild(b);
+  });
+}
+renderThemes();   // 기본 목록(연결 전에도 표시)
+
 function onData(m){
   if(!m||!m.t)return;
-  if(m.t==='ready'){ $('ctrlHint').textContent='준비 완료! 촬영하기를 누르세요.'; }
+  if(m.t==='ready'){ $('ctrlHint').textContent='준비 완료! 촬영하기를 누르세요.'; if(m.themes) renderThemes(m.themes); }
   else if(m.t==='count'){ $('shoot').textContent=m.n>0?('📸 '+m.n):'📸 찰칵!'; }
   else if(m.t==='shot_reset'){ $('shoot').disabled=false; $('shoot').textContent='📸 촬영하기'; }
   else if(m.t==='img_start'){ chunks={total:m.total,mime:m.mime||'image/jpeg',got:0,parts:new Array(m.total)}; }
@@ -163,10 +200,23 @@ let capT=null;
 function sendCap(){ if(conn&&conn.open) conn.send({t:'cap',text:$('cap').value}); }
 $('cap').addEventListener('input',()=>{ clearTimeout(capT); capT=setTimeout(sendCap,180); });
 
+let SEC=3;
+document.querySelectorAll('.seg').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('.seg').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on'); SEC=Number(b.dataset.s)||3;
+  if(conn&&conn.open) conn.send({t:'sec',sec:SEC});   // 전광판에도 미리 알림(선택)
+}));
+
 $('shoot').addEventListener('click',()=>{
   if(!conn||!conn.open){ flash('전광판 연결을 확인하세요'); return; }
   $('shoot').disabled=true; $('shoot').textContent='📸 준비…';
-  conn.send({t:'shoot'});
+  conn.send({t:'shoot',sec:SEC});
+});
+$('quit').addEventListener('click',()=>{
+  if(conn&&conn.open) conn.send({t:'quit'});
+  setStatus('촬영을 마쳤습니다 · 감사합니다 🙏');
+  $('ctrl').style.display='none'; $('result').classList.remove('show');
+  flash('메인 화면으로 돌아갑니다');
 });
 $('retry').addEventListener('click',()=>{
   $('result').classList.remove('show'); $('ctrl').style.display='';
