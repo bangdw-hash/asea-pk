@@ -38,6 +38,8 @@
   .seg.on{background:var(--acc);color:#06213a;border-color:var(--acc)}
   #themes{display:grid;grid-template-columns:1fr 1fr;gap:8px}
   #themes .seg{flex:none;padding:13px 0;font-size:15px}
+  #bgpick{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  #bgpick .seg{flex:none;padding:12px 0;font-size:14px}
   .toggle{width:100%;margin-top:10px;border:1px solid var(--line);border-radius:13px;padding:14px;
     background:#0c162a;color:var(--dim);font-size:16px;font-weight:800}
   .toggle span{font-size:12px;font-weight:600;opacity:.8}
@@ -90,6 +92,10 @@
       <label>배경 테마</label>
       <div id="themes"></div>
       <button class="toggle" id="bg" data-on="0">🧑 배경 합성: 끔 <span>(사람만 남기고 배경 교체)</span></button>
+    </div>
+    <div class="card" id="bgpickCard" style="display:none">
+      <label>합성 배경 선택</label>
+      <div id="bgpick"></div>
     </div>
     <div class="card">
       <label>배너 표기 언어</label>
@@ -229,8 +235,21 @@ $('bg').addEventListener('click',()=>{
   const on=$('bg').dataset.on!=='1'; $('bg').dataset.on=on?'1':'0';
   $('bg').classList.toggle('on',on);
   $('bg').innerHTML=(on?'🧑 배경 합성: 켬':'🧑 배경 합성: 끔')+' <span>(사람만 남기고 배경 교체)</span>';
+  $('bgpickCard').style.display=on?'':'none';
   if(conn&&conn.open) conn.send({t:'bg',on});
 });
+const BGS=[{id:'theme',name:'테마와 동일'},{id:'space',name:'별밤 🌌'},{id:'sunset',name:'노을 🌅'},{id:'aurora',name:'오로라'},{id:'runway',name:'활주로'},{id:'spring',name:'벚꽃 🌸'},{id:'tower',name:'관제 그리드'},{id:'navy',name:'네이비 밤하늘'},{id:'a320',name:'코크핏 글로우'}];
+let BGSEL='theme';
+function renderBgs(){
+  const box=$('bgpick'); if(!box)return; box.innerHTML='';
+  BGS.forEach(t=>{ const b=document.createElement('button');
+    b.className='seg'+(t.id===BGSEL?' on':''); b.textContent=t.name; b.dataset.id=t.id;
+    b.addEventListener('click',()=>{ BGSEL=t.id;
+      box.querySelectorAll('.seg').forEach(x=>x.classList.remove('on')); b.classList.add('on');
+      if(conn&&conn.open) conn.send({t:'bgimg',id:t.id}); });
+    box.appendChild(b); });
+}
+renderBgs();
 
 $('shoot').addEventListener('click',()=>{
   if(!conn||!conn.open){ flash('전광판 연결을 확인하세요'); return; }
