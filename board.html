@@ -178,8 +178,8 @@ body{
   background:linear-gradient(transparent,rgba(6,30,48,.85));
   color:#fff;
 }
-.slide.photo .cap h2{font-size:4.6vh;margin-bottom:.8vh;color:#fff}
-.slide.photo .cap p{font-family:var(--font-slide-body);font-size:2.3vh;opacity:.9}
+.slide.photo .cap h2{font-size:6.9vh;margin-bottom:1.1vh;color:#fff}   /* 캠퍼스 갤러리 서체 150% */
+.slide.photo .cap p{font-family:var(--font-slide-body);font-size:3.45vh;opacity:.92}  /* 캡션 150% */
 
 /* 유형별 자동 디자인 ─ 현황 */
 .statgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(16vw,1fr));gap:1.6vw;margin-top:1vh}
@@ -214,6 +214,7 @@ table.rent td.tm{font-family:var(--font-mono);white-space:nowrap}
   animation:hover 3.2s ease-in-out infinite}
 @keyframes hover{50%{transform:translateY(-1.2vh)}}
 .slide.welcome h2{font-size:8.2vh;margin-bottom:0;line-height:1.2;color:var(--deep)}
+.slide.welcome.multi h2{font-size:5.4vh;line-height:1.4}   /* 대상 여러 줄일 때 자동 축소 */
 .slide.welcome .wc-line{width:14vw;height:.5vh;border-radius:99px;margin:2.6vh auto;
   background:linear-gradient(90deg,transparent,var(--accent),transparent)}
 .slide.welcome .body{font-size:3.4vh;line-height:1.8}
@@ -1066,12 +1067,17 @@ function gvizLoad(sheet, cb){
 }
 function driveId(url){ const m=String(url||"").match(/[?&]id=([\w-]+)|\/d\/([\w-]+)/); return m?(m[1]||m[2]):""; }
 
-/* 배너(골든킥) 표시 여부: 환영 시트 '배너(Y/N)' 셀(B8) 값으로 제어 */
+/* 환영 시트 직접 읽기: 배너(Y/N) 표시여부 + 대상/문구(줄바꿈 보존) */
+let WELCOME_TITLE=null, WELCOME_BODY=null;
 function syncBanner(){
   gvizLoad("환영", rows=>{
     if(!rows) return;                                  // 읽기 실패 시 현재 상태 유지
     let val=null;
-    rows.forEach(r=>{ if(String(r[0]||"").replace(/\s/g,"").indexOf("배너")===0) val=String(r[1]||"").trim().toUpperCase(); });
+    rows.forEach(r=>{ const a=String(r[0]||"").replace(/\s/g,"");
+      if(a.indexOf("배너")===0) val=String(r[1]||"").trim().toUpperCase();
+      else if(a==="대상") WELCOME_TITLE=String(r[1]||"");   // Alt+Enter 줄바꿈(\n) 그대로 보존
+      else if(a==="문구") WELCOME_BODY=String(r[1]||"");
+    });
     const ban=document.getElementById("gk-banner");
     if(ban && val!=null) ban.style.display=(val==="Y")?"":"none";
   });
@@ -1983,12 +1989,16 @@ let slides=[], cur=0, timer=null, lastHash="";
 
 function slideHTML(s){
   if(s.type==="환영"){
-    return `<div class="slide welcome" data-type="환영">
+    // 대상/문구는 시트에서 직접 읽은 값(줄바꿈 보존)을 우선 사용 → 2줄 입력이면 2줄로 표시
+    const wt=(WELCOME_TITLE!=null?WELCOME_TITLE:s.title)||"";
+    const wb=(WELCOME_BODY!=null?WELCOME_BODY:s.body)||"아세아항공직업전문학교 방문을 진심으로 환영합니다.";
+    const multi=/\n/.test(wt)?" multi":"";           // 대상이 여러 줄이면 제목 크기 자동 축소
+    return `<div class="slide welcome${multi}" data-type="환영">
       <div class="wc-eyebrow">WELCOME · 환영합니다</div>
       <div class="wc-plane">✈</div>
-      <h2>${esc(s.title).replace(/\n/g,"<br>")}</h2>
+      <h2>${esc(wt).replace(/\n/g,"<br>")}</h2>
       <div class="wc-line"></div>
-      <div class="body">${esc(s.body||"아세아항공직업전문학교 방문을 진심으로 환영합니다.")}</div>
+      <div class="body">${esc(wb).replace(/\n/g,"<br>")}</div>
       <div class="meta">ASEA AVIATION OCCUPATIONAL TRAINING COLLEGE · 아세아항공직업전문학교</div>
     </div>`;
   }
@@ -2107,7 +2117,8 @@ function applySizes(sz){
   add(".slide h2",6.4,"slideTitle");
   add(".slide.welcome h2",8.2,"slideTitle");
   add(".slide .body",3,"slideBody");
-  add(".slide.photo .cap p",2.3,"slideBody");
+  add(".slide.photo .cap h2",6.9,"slideTitle");   /* 캠퍼스 갤러리 제목 150% (서체 배율 유지) */
+  add(".slide.photo .cap p",3.45,"slideBody");    /* 캠퍼스 갤러리 캡션 150% */
   add(".slide.welcome .body",3.4,"slideBody");
   add(".slide .eyebrow",1.9,"eyebrow");
   add(".clockcard .time",8.4,"clock");
