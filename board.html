@@ -1589,7 +1589,7 @@ setInterval(()=>{
 function greetStop(){
   clearInterval(GREET.timer); GREET.timer=null;
   if(GREET.stream) GREET.stream.getTracks().forEach(t=>t.stop());
-  GREET.stream=null; GREET.bg=null; GREET.present=false;
+  GREET.stream=null; GREET.prev=null; GREET.moveTicks=0;
 }
 function greetTick(){
   try{
@@ -1602,25 +1602,28 @@ function greetTick(){
     greetAnalyze(g);
   }catch(e){}
 }
-/* ── 통행 감지(고감도) ──
-   배경(빈 장면)을 기억해 두고 현재 프레임과 비교:
-   · 전경 비율 ≥ TRIG(6%) = 지나가는 사람/물체 감지 → 즉시 인사
-     (정면·근접 불필요, 스쳐 지나가는 움직임에도 반응)
-   · 인사 종료 후 5초 뒤 센서 재작동 → 움직임이 있으면 다시 인사
-   · 전경 < EMPTY(4%) = 빈 장면 → 배경 빠른 적응(조명 변화 흡수)   */
-const TRIG=0.06, EMPTY=0.04, DIFF=25;
+/* ── 통행 감지 (프레임 간 움직임 방식) ──
+   장기 배경과 비교하던 방식은 조명 변화·카메라 자동노출·노이즈에도 반응해
+   사람이 없는데 인사가 켜지는 오작동이 있었다. 이제 '직전 프레임과의 차이'만
+   보므로, 정지 장면은 밝기가 달라도 차이가 0에 수렴 → 오작동이 사라진다.
+   · MOVE(7%)~GLOBAL(70%) 범위의 움직임이 MOVE_TICKS(2틱≈0.8초) 연속 지속되면 통행 인정
+   · 또는 STRONG(22%) 이상(단, GLOBAL 미만)이면 근접 통행으로 즉시 인정
+   · 전면 급변(>70%)은 조명/카메라 노출 변화로 보고 무시 → 사람 없이 켜지는 오작동 방지
+   · 순간 노이즈·노출 반짝(1틱)도 무시 · 인사 종료 후 5초 재작동 대기 */
+const DIFF=28, MOVE=0.07, STRONG=0.22, GLOBAL=0.70, MOVE_TICKS=2;
 function greetAnalyze(g){
-  if(!GREET.bg){ GREET.bg=Float32Array.from(g); GREET.emptyTicks=0; GREET.present=false; return; }
-  let fg=0;
-  for(let i=0;i<1200;i++) if(Math.abs(g[i]-GREET.bg[i])>DIFF) fg++;
-  const ratio=fg/1200;
-
-  /* 배경 적응: 빈 장면일 땐 빠르게(조명 변화 흡수), 움직임 있을 땐 아주 느리게 */
-  const a = ratio<EMPTY ? .10 : .004;
-  for(let i=0;i<1200;i++) GREET.bg[i]=GREET.bg[i]*(1-a)+g[i]*a;
-
-  // 지나가는 움직임이면 즉시 인사 (재생 중이거나 재작동 대기 5초 안이면 대기)
-  if(ratio>=TRIG && !GREET.showing && Date.now()>GREET.cool) showGreeting();
+  if(!GREET.prev){ GREET.prev=Float32Array.from(g); GREET.moveTicks=0; return; }
+  let ch=0;
+  for(let i=0;i<1200;i++) if(Math.abs(g[i]-GREET.prev[i])>DIFF) ch++;
+  GREET.prev.set(g);                 // 항상 직전 프레임 대비(정지 장면 → 0 수렴)
+  const motion=ch/1200;
+  if(motion>=MOVE && motion<=GLOBAL){          // 국소 움직임(사람)만 인정, 전면 급변은 제외
+    GREET.moveTicks=(GREET.moveTicks||0)+1;
+    const fire = GREET.moveTicks>=MOVE_TICKS || motion>=STRONG;
+    if(fire && !GREET.showing && Date.now()>GREET.cool) showGreeting();
+  } else {
+    GREET.moveTicks=0;               // 움직임 없음(<7%) 또는 전면 급변(>70%) → 리셋
+  }
 }
 function showGreeting(){
   if(window.GK_ON) return;               // 골든킥 게임 표시 중에는 인사 억제
