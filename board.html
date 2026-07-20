@@ -8,6 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=IBM+Plex+Sans+KR:wght@400;500;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1.1675465747/selfie_segmentation.js" crossorigin="anonymous"></script>
 <style>
 /* ══════════════════════════════════════════════
    ASEA AVIATION LOBBY SIGNAGE
@@ -2585,6 +2586,8 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
 #pb-frame{position:absolute;inset:3.2vh 3vw;border-radius:2.8vh;overflow:hidden;
   border:.35vh solid var(--pb-acc);box-shadow:0 0 0 .7vh rgba(8,16,30,.7),0 2vh 6vh rgba(0,0,0,.55)}
 #pb-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1);background:#0a1120}
+#pb-seg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1);z-index:2;display:none}
+#pb-stage.seg #pb-seg{display:block}   /* 배경 합성 ON일 때 합성 캔버스가 카메라를 덮음 */
 .pb-cnr{position:absolute;width:5.5vh;height:5.5vh;border:.55vh solid var(--pb-acc);z-index:3;pointer-events:none;opacity:.92}
 .pb-cnr.tl{top:1.6vh;left:1.2vw;border-right:0;border-bottom:0;border-radius:1.2vh 0 0 0}
 .pb-cnr.tr{top:1.6vh;right:1.2vw;border-left:0;border-bottom:0;border-radius:0 1.2vh 0 0}
@@ -2616,6 +2619,7 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
   white-space:nowrap;word-break:keep-all}
 #pb-bsub{margin-top:1vh;color:#cfe0f2;font-family:var(--font-display);font-size:2vh;letter-spacing:.05em}
 #pb-bsub b{color:var(--pb-acc);font-weight:800}
+#pb-bsub-en{margin-top:.5vh;color:#9fb3c9;font-family:var(--font-display);font-size:1.5vh;letter-spacing:.08em}
 </style>
 
 <div id="pb-card" class="hide">
@@ -2625,15 +2629,17 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
 <div id="pb-stage">
   <div id="pb-frame">
     <video id="pb-video" playsinline muted></video>
+    <canvas id="pb-seg"></canvas>
     <div class="pb-cnr tl"></div><div class="pb-cnr tr"></div><div class="pb-cnr bl"></div><div class="pb-cnr br"></div>
     <div id="pb-gate">✈ ASEA AVIATION · BOARDING</div>
     <div id="pb-msg"></div>
     <div id="pb-count"></div>
     <div id="pb-flash"></div>
     <div id="pb-banner">
-      <div class="pb-air"><i></i>✈ 방문 기념<i class="r"></i></div>
+      <div class="pb-air"><i></i><span id="pb-air-t">✈ 방문 기념</span><i class="r"></i></div>
       <div id="pb-btext">아세아항공직업전문학교 방문을 환영합니다</div>
-      <div id="pb-bsub"><b>아세아항공직업전문학교</b> · <span id="pb-bdate"></span></div>
+      <div id="pb-bsub"><b id="pb-school">아세아항공직업전문학교</b> · <span id="pb-bdate"></span></div>
+      <div id="pb-bsub-en" style="display:none"></div>
     </div>
   </div>
 </div>
@@ -2678,8 +2684,74 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
   const stage=$('pb-stage'),video=$('pb-video'),btextEl=$('pb-btext'),bdateEl=$('pb-bdate'),
         countEl=$('pb-count'),flashEl=$('pb-flash'),msgEl=$('pb-msg'),card=$('pb-card');
   const DEFAULT_TEXT='아세아항공직업전문학교 방문을 환영합니다';
-  const BOOTH={host:null,conn:null,code:null,stream:null,active:false,exitT:null,shooting:false,sec:3,dateT:null,capText:'',capDate:''};
+  const BOOTH={host:null,conn:null,code:null,stream:null,active:false,exitT:null,shooting:false,sec:3,lang:'ko',bg:false,dateT:null,capText:'',capDate:''};
   window.PB_ON=false;
+
+  /* ── 배경 합성(누끼): MediaPipe Selfie Segmentation — 사람만 분리해 테마 배경 위에 합성 ──
+     로드 실패 시 조용히 실제 카메라로 폴백(부스 정상 동작). */
+  const segCanvas=$('pb-seg'), segCtx=segCanvas.getContext('2d');
+  let seg=null, segBusy=false, segRAF=null; const bgCache={};
+  const PB_PHOTOBG={
+    navy:['#1b3f68','#071426','stars'], a320:['#0c3345','#04121c','glow'],
+    runway:['#241f14','#05040a','lights'], tower:['#0a3a26','#02120b','grid'],
+    sunset:['#ff9e63','#5e2440','none'], aurora:['#12463c','#041915','streak'],
+    space:['#33206a','#070312','stars'], spring:['#ffd7e6','#a85f86','bokeh'],
+    hanbit:['#1e4a86','#071426','stars'],
+  };
+  function drawThemeBg(ctx,w,h,theme){
+    const P=PB_PHOTOBG[theme]||PB_PHOTOBG.navy;
+    const g=ctx.createLinearGradient(0,0,0,h); g.addColorStop(0,P[0]); g.addColorStop(1,P[1]);
+    ctx.fillStyle=g; ctx.fillRect(0,0,w,h);
+    const k=P[2];
+    if(k==='stars'){ ctx.fillStyle='#fff'; for(let i=0;i<130;i++){const x=Math.random()*w,y=Math.random()*h*0.82,r=Math.random()*1.6+0.3;ctx.globalAlpha=Math.random()*0.7+0.25;ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill();} ctx.globalAlpha=1; }
+    else if(k==='bokeh'){ for(let i=0;i<44;i++){const x=Math.random()*w,y=Math.random()*h,r=Math.random()*46+12;ctx.globalAlpha=Math.random()*0.14+0.04;ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill();} ctx.globalAlpha=1; }
+    else if(k==='lights'){ ctx.fillStyle='#ffb400'; for(let i=0;i<16;i++){const t=i/16;ctx.globalAlpha=.25+t*.55;ctx.fillRect(w*0.5-2,h*(0.45+t*0.55),4,9);} ctx.globalAlpha=1; }
+    else if(k==='streak'){ const gg=ctx.createLinearGradient(0,h*0.18,w,h*0.45); gg.addColorStop(0,'rgba(127,255,212,0)');gg.addColorStop(.5,'rgba(127,255,212,.28)');gg.addColorStop(1,'rgba(127,255,212,0)'); ctx.fillStyle=gg; ctx.fillRect(0,h*0.12,w,h*0.28); }
+    else if(k==='glow'){ const rg=ctx.createRadialGradient(w/2,h*0.34,10,w/2,h*0.34,w*0.55); rg.addColorStop(0,'rgba(0,229,255,.22)');rg.addColorStop(1,'rgba(0,229,255,0)'); ctx.fillStyle=rg; ctx.fillRect(0,0,w,h); }
+    else if(k==='grid'){ ctx.strokeStyle='rgba(55,224,139,.14)';ctx.lineWidth=1; for(let x=0;x<w;x+=64){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();} for(let y=0;y<h;y+=64){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();} }
+  }
+  function getBg(theme,w,h){ const key=theme+w+'x'+h; if(!bgCache[key]){const c=document.createElement('canvas');c.width=w;c.height=h;drawThemeBg(c.getContext('2d'),w,h,theme);bgCache[key]=c;} return bgCache[key]; }
+  function onSegResults(res){
+    const w=segCanvas.width,h=segCanvas.height,ctx=segCtx;
+    ctx.save(); ctx.clearRect(0,0,w,h);
+    try{
+      ctx.drawImage(res.segmentationMask,0,0,w,h);         // 사람 마스크
+      ctx.globalCompositeOperation='source-in';
+      ctx.drawImage(res.image,0,0,w,h);                    // 마스크 영역에 카메라 프레임
+      ctx.globalCompositeOperation='destination-over';
+      ctx.drawImage(getBg(BOOTH.theme||'navy',w,h),0,0,w,h);// 뒤에 테마 배경
+      ctx.globalCompositeOperation='source-over';
+    }catch(e){}
+    ctx.restore();
+  }
+  function initSeg(){
+    if(seg) return true;
+    if(typeof SelfieSegmentation==='undefined') return false;
+    try{
+      seg=new SelfieSegmentation({locateFile:f=>'https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1.1675465747/'+f});
+      seg.setOptions({modelSelection:1, selfieMode:false});
+      seg.onResults(onSegResults);
+      return true;
+    }catch(e){ seg=null; return false; }
+  }
+  async function segFrame(){
+    if(!BOOTH.bg||!BOOTH.active){ segRAF=null; return; }
+    if(seg && video.readyState>=2 && !segBusy){ segBusy=true; try{ await seg.send({image:video}); }catch(e){} segBusy=false; }
+    segRAF=requestAnimationFrame(segFrame);
+  }
+  function setBg(on){
+    if(on){
+      if(segCanvas.width!==1280){ segCanvas.width=1280; segCanvas.height=720; }
+      if(!initSeg()){ msg('배경 합성을 쓸 수 없습니다(모델 로드 실패) · 실제 배경으로 촬영'); BOOTH.bg=false; stage.classList.remove('seg'); return; }
+      BOOTH.bg=true; stage.classList.add('seg');
+      if(!segRAF) segFrame();
+      msg('🧑 배경 합성 ON · 문구 적고 촬영하세요');
+    }else{
+      BOOTH.bg=false; stage.classList.remove('seg');
+      if(segRAF){ cancelAnimationFrame(segRAF); segRAF=null; }
+      if(BOOTH.active) msg('휴대폰에서 문구를 적고 촬영하세요 📸');
+    }
+  }
 
   function code5(){const A='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';let s='';for(let i=0;i<5;i++)s+=A[Math.random()*A.length|0];return s;}
   function ctrlUrl(code){ return new URL('photo.html?c='+code, location.href).href; }
@@ -2693,7 +2765,25 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
     a320:  {name:'A320 코크핏', acc:'#00e5ff', gate:'✈ AIRBUS A320 · BOARDING',            bg:'radial-gradient(120% 90% at 50% 0%,#08202b,#03121a 72%)'},
     runway:{name:'활주로',      acc:'#ffb400', gate:'🛫 RUNWAY 34 · CLEARED FOR TAKEOFF',   bg:'radial-gradient(120% 90% at 50% 0%,#14120f,#070605 72%)'},
     tower: {name:'관제탑',      acc:'#37e08b', gate:'📡 ASEA TOWER · RKSS SEOUL',           bg:'radial-gradient(120% 90% at 50% 0%,#03150d,#020a06 72%)'},
+    sunset:{name:'노을 게이트', acc:'#ff9a5a', gate:'🌅 SUNSET GATE · WELCOME ABOARD',      bg:'radial-gradient(120% 90% at 50% 0%,#3a1c12,#140806 72%)'},
+    aurora:{name:'오로라',      acc:'#7fffd4', gate:'🌌 AURORA · WELCOME TO ASEA',          bg:'radial-gradient(120% 90% at 50% 0%,#08231f,#03110f 72%)'},
+    space: {name:'스페이스',    acc:'#b39cff', gate:'🚀 SPACE CHALLENGE · ASEA',            bg:'radial-gradient(120% 90% at 50% 0%,#160c2e,#070312 72%)'},
+    spring:{name:'봄·환영',     acc:'#ff9ec7', gate:'🌸 WELCOME TO ASEA · SPRING',          bg:'radial-gradient(120% 90% at 50% 0%,#2a1420,#120810 72%)'},
+    hanbit:{name:'한빛(태극)',  acc:'#5aa9ff', gate:'🇰🇷 WELCOME · 아세아항공',              bg:'radial-gradient(120% 90% at 50% 0%,#101a2e,#060b16 72%)'},
   };
+  /* 배너 표기 언어 (컨트롤러에서 선택) */
+  const PB_LANG={
+    ko:  {air:'✈ 방문 기념',                 school:'아세아항공직업전문학교',                       en:''},
+    both:{air:'✈ 방문 기념 · VISIT',         school:'아세아항공직업전문학교',                       en:'ASEA AVIATION OCCUPATIONAL TRAINING COLLEGE'},
+    en:  {air:'✈ VISIT COMMEMORATION',       school:'ASEA AVIATION OCCUPATIONAL TRAINING COLLEGE',   en:''},
+  };
+  function applyLang(v){
+    BOOTH.lang=(v in PB_LANG)?v:'ko'; const L=PB_LANG[BOOTH.lang];
+    const air=$('pb-air-t'), school=$('pb-school'), en=$('pb-bsub-en');
+    if(air) air.textContent=L.air;
+    if(school) school.textContent=L.school;
+    if(en){ en.textContent=L.en; en.style.display=L.en?'':'none'; }
+  }
   function applyTheme(id){
     const t=PB_THEMES[id]||PB_THEMES.navy; BOOTH.theme=(id in PB_THEMES)?id:'navy'; BOOTH.themeObj=t;
     stage.style.setProperty('--pb-acc',t.acc); stage.style.background=t.bg;
@@ -2733,6 +2823,8 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
     if(!m||!m.t)return;
     if(m.t==='cap') setCap(m.text);
     else if(m.t==='theme') applyTheme(m.id);
+    else if(m.t==='lang') applyLang(m.v);
+    else if(m.t==='bg') setBg(!!m.on);
     else if(m.t==='sec') BOOTH.sec=Math.max(1,Math.min(30,Number(m.sec)||3));
     else if(m.t==='shoot') doShoot(conn, Number(m.sec)||BOOTH.sec||3);
     else if(m.t==='quit') exitBooth();
@@ -2742,7 +2834,7 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
     if(BOOTH.active){ clearTimeout(BOOTH.exitT); return; }
     BOOTH.active=true; window.PB_ON=true;
     try{ if(typeof greetStop==='function') greetStop(); }catch(e){}
-    applyTheme(BOOTH.theme||'navy');
+    applyTheme(BOOTH.theme||'navy'); applyLang(BOOTH.lang||'ko');
     stage.classList.add('on'); card.classList.add('hide');
     msg('휴대폰에서 문구를 적고 촬영하세요 📸'); startDate();
     startCam();
@@ -2750,6 +2842,7 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
   function scheduleExit(){ clearTimeout(BOOTH.exitT); BOOTH.exitT=setTimeout(exitBooth,1800); }
   function exitBooth(){
     BOOTH.active=false; window.PB_ON=false; BOOTH.shooting=false;
+    setBg(false);
     stage.classList.remove('on'); card.classList.remove('hide'); stopDate(); setCap('');
     if(BOOTH.stream){ BOOTH.stream.getTracks().forEach(t=>t.stop()); BOOTH.stream=null; }
     // 인사 카메라 복구
@@ -2793,37 +2886,47 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
     ctx.fillStyle=acc; ctx.textAlign='left'; ctx.fillText(text,x+padX,y+h/2);
   }
   function drawBanner(ctx,cw,ch,fx,fy,fw,fh,acc){
+    const L=PB_LANG[BOOTH.lang]||PB_LANG.ko;
     const text=btextEl.textContent||DEFAULT_TEXT;
-    const sub='아세아항공직업전문학교 · '+(BOOTH.capDate||nowStr());
+    const sub=L.school+' · '+(BOOTH.capDate||nowStr());
+    const enLine=L.en;
     let mfs=ch*0.062, guard=0; const maxTextW=fw*0.82;
     ctx.font='800 '+mfs+'px sans-serif';
     while(ctx.measureText(text).width>maxTextW && mfs>ch*0.03 && guard++<90){ mfs-=1; ctx.font='800 '+mfs+'px sans-serif'; }
     const mtw=ctx.measureText(text).width;
-    const airfs=ch*0.024, sfs=ch*0.03, padX=cw*0.035, padY=ch*0.032, gap=ch*0.016;
-    const bw=Math.min(fw*0.92, Math.max(fw*0.36, mtw+padX*2));
-    const bh=airfs+gap+mfs+gap+sfs+padY*2;
+    const airfs=ch*0.024, sfs=ch*0.03, enfs=ch*0.022, padX=cw*0.035, padY=ch*0.032, gap=ch*0.014;
+    // 영문 서브라인 폭도 배너 폭에 반영
+    ctx.font='700 '+sfs+'px sans-serif'; const subw=ctx.measureText(sub).width;
+    ctx.font='700 '+enfs+'px sans-serif'; const enw=enLine?ctx.measureText(enLine).width:0;
+    const bw=Math.min(fw*0.94, Math.max(fw*0.36, mtw+padX*2, subw+padX*2, enw+padX*2));
+    const bh=airfs+gap+mfs+gap+sfs+(enLine?gap*0.7+enfs:0)+padY*2;
     const bx=cw/2-bw/2, by=fy+fh-bh-ch*0.05;
     const bgrd=ctx.createLinearGradient(0,by,0,by+bh); bgrd.addColorStop(0,'rgba(12,31,56,.92)'); bgrd.addColorStop(1,'rgba(8,20,38,.95)');
     ctx.fillStyle=bgrd; roundRect(ctx,bx,by,bw,bh,ch*0.03); ctx.fill();
     ctx.strokeStyle=acc; ctx.lineWidth=Math.max(2,ch*0.0035); ctx.stroke();
     ctx.textAlign='center'; ctx.textBaseline='middle';
     let y=by+padY+airfs/2;
-    ctx.font='700 '+Math.round(airfs)+'px sans-serif'; ctx.fillStyle=acc; ctx.fillText('✈  방문 기념', cw/2, y);
+    ctx.font='700 '+Math.round(airfs)+'px sans-serif'; ctx.fillStyle=acc; ctx.fillText(L.air, cw/2, y);
     y+=airfs/2+gap+mfs/2;
     ctx.font='800 '+Math.round(mfs)+'px sans-serif'; ctx.fillStyle='#fff'; ctx.fillText(text, cw/2, y);
     y+=mfs/2+gap+sfs/2;
     ctx.font='700 '+Math.round(sfs)+'px sans-serif'; ctx.fillStyle='#cfe0f2'; ctx.fillText(sub, cw/2, y);
+    if(enLine){ y+=sfs/2+gap*0.7+enfs/2;
+      ctx.font='700 '+Math.round(enfs)+'px sans-serif'; ctx.fillStyle='#9fb3c9'; ctx.fillText(enLine, cw/2, y); }
   }
   function drawComposite(ctx,cw,ch){
     const acc=(BOOTH.themeObj&&BOOTH.themeObj.acc)||'#ffb400';
+    // 배경 합성 ON이면 합성 캔버스(사람+테마 배경)를, 아니면 실제 카메라를 프레임에 채움
+    const useSeg = BOOTH.bg && segCanvas.width>1;
+    const src = useSeg ? segCanvas : video;
     ctx.fillStyle='#071426'; ctx.fillRect(0,0,cw,ch);
     const fx=cw*0.03, fy=ch*0.045, fw=cw-2*fx, fh=ch-2*fy, fr=Math.round(ch*0.04);
-    const vw=video.videoWidth||1280, vh=video.videoHeight||720, vAR=vw/vh, fAR=fw/fh;
+    const vw=(useSeg?segCanvas.width:(video.videoWidth||1280)), vh=(useSeg?segCanvas.height:(video.videoHeight||720)), vAR=vw/vh, fAR=fw/fh;
     let dw,dh; if(vAR>fAR){ dh=fh; dw=fh*vAR; } else { dw=fw; dh=fw/vAR; }
     const dx=fx+(fw-dw)/2, dy=fy+(fh-dh)/2;
     ctx.save(); roundRect(ctx,fx,fy,fw,fh,fr); ctx.clip();
     ctx.translate(cw,0); ctx.scale(-1,1);
-    try{ ctx.drawImage(video, cw-dx-dw, dy, dw, dh); }catch(e){ ctx.fillStyle='#0a1120'; ctx.fillRect(0,0,cw,ch); }
+    try{ ctx.drawImage(src, cw-dx-dw, dy, dw, dh); }catch(e){ ctx.fillStyle='#0a1120'; ctx.fillRect(0,0,cw,ch); }
     ctx.restore();
     ctx.save(); roundRect(ctx,fx,fy,fw,fh,fr); ctx.lineWidth=Math.max(2,ch*0.004); ctx.strokeStyle=acc; ctx.globalAlpha=.6; ctx.stroke(); ctx.restore();
     drawBrackets(ctx,fx,fy,fw,fh,ch,acc);
