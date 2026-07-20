@@ -87,6 +87,14 @@
       <div id="themes"></div>
     </div>
     <div class="card">
+      <label>배너 표기 언어</label>
+      <div class="segs" id="langs">
+        <button class="seg on" data-l="ko">한국어</button>
+        <button class="seg" data-l="both">한+영</button>
+        <button class="seg" data-l="en">English</button>
+      </div>
+    </div>
+    <div class="card">
       <label>촬영 카운트다운</label>
       <div class="segs" id="secs">
         <button class="seg on" data-s="3">3초</button>
@@ -205,6 +213,12 @@ document.querySelectorAll('.seg').forEach(b=>b.addEventListener('click',()=>{
   document.querySelectorAll('.seg').forEach(x=>x.classList.remove('on'));
   b.classList.add('on'); SEC=Number(b.dataset.s)||3;
   if(conn&&conn.open) conn.send({t:'sec',sec:SEC});   // 전광판에도 미리 알림(선택)
+}));
+
+document.querySelectorAll('#langs .seg').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('#langs .seg').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on');
+  if(conn&&conn.open) conn.send({t:'lang',v:b.dataset.l});
 }));
 
 $('shoot').addEventListener('click',()=>{
