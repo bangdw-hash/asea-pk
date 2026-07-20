@@ -2568,10 +2568,11 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
 
 <!-- ================= 방문 기념촬영 부스 ================= -->
 <style>
-/* 슬라이드 캡션(좌하단)·골든킥 배너(좌하단)와 겹치지 않도록 슬라이드 영역 우하단에 배치 */
-#pb-card{position:fixed;right:27vw;bottom:2.6vh;left:auto;z-index:820;display:flex;align-items:center;gap:.9vw;
-  background:rgba(10,17,32,.9);border:1px solid rgba(90,210,255,.35);border-radius:1.6vh;padding:1vh 1vw;
-  box-shadow:0 1.4vh 4vh rgba(0,0,0,.42);backdrop-filter:blur(6px)}
+/* 슬라이드 문구(캡션)는 좌하단·좌측 정렬이므로, QR은 슬라이드 영역 '우하단'(진행점 위)에
+   배치해 문구를 가리지 않게 함. 우측 안내 패널도 침범하지 않음. */
+#pb-card{position:fixed;right:27.5vw;bottom:5.5vh;left:auto;z-index:820;display:flex;align-items:center;gap:.9vw;
+  background:rgba(10,17,32,.92);border:1px solid rgba(90,210,255,.4);border-radius:1.6vh;padding:1vh 1vw;
+  box-shadow:0 1.4vh 4vh rgba(0,0,0,.45);backdrop-filter:blur(6px)}
 #pb-card.hide{display:none}
 #pb-card #pb-qr{width:9vh;height:9vh;background:#fff;border-radius:.9vh;padding:.5vh;flex:none;line-height:0}
 #pb-card #pb-qr img,#pb-card #pb-qr canvas{width:100%!important;height:100%!important;border-radius:.4vh}
