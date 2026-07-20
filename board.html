@@ -87,11 +87,15 @@ body{
 }
 @keyframes drift{from{transform:translateX(-30vw)}to{transform:translateX(130vw)}}
 
-.stage{position:relative;z-index:1;display:flex;height:100vh;padding:2vh 1.4vw;gap:1.4vw}
+/* 방문자 인사(승무원) 오버레이가 슬라이드 '텍스트' 뒤에 오도록, stage에
+   z-index를 두지 않아(스태킹 컨텍스트 해제) 특정 슬라이드가 인사 위로 올라올 수 있게 함.
+   대신 헤더·우측 패널은 예전과 동일한 층(z-index:1)으로 보호. */
+.stage{position:relative;display:flex;height:100vh;padding:2vh 1.4vw;gap:1.4vw}
 
 /* ── 좌측 3/4 : 슬라이드 영역 ── */
 .main{flex:3;display:flex;flex-direction:column;min-width:0}
 .header{
+  position:relative;z-index:1;      /* stage 컨텍스트 해제 후에도 구름/효과 위 유지 */
   display:flex;align-items:center;gap:1vw;padding:0 .5vw 1.4vh;
 }
 .header .mark span{display:inline-block;animation:taxi 9s ease-in-out infinite}
@@ -126,9 +130,15 @@ body{
 
 .slidebox{
   flex:1;position:relative;border-radius:2.4vh;overflow:hidden;
-  background:var(--panel);backdrop-filter:blur(14px);
   border:1px solid var(--panel-line);
   box-shadow:0 2vh 6vh rgba(14,79,122,.18);
+}
+/* 패널 배경+블러를 별도 '뒤' 레이어로 분리.
+   slidebox 자체에 backdrop-filter가 있으면 스태킹 컨텍스트가 생겨 내부 슬라이드가
+   방문자 인사 오버레이(z-index:9) 위로 못 올라온다. ::before로 옮겨 그 제약을 없앤다. */
+.slidebox::before{
+  content:"";position:absolute;inset:0;z-index:0;border-radius:inherit;
+  background:var(--panel);backdrop-filter:blur(14px);pointer-events:none;
 }
 .flyplane{
   position:absolute;z-index:1;font-size:3.4vh;color:var(--deep);opacity:.4;
@@ -168,12 +178,12 @@ body{
 .slide .meta{margin-top:auto;font-size:2vh;color:var(--dim);letter-spacing:.05em}
 
 /* 유형별 자동 디자인 ─ 사진 */
-.slide.photo{padding:0}
+.slide.photo{padding:0;z-index:10}   /* 갤러리 캡션이 방문자 인사 위로 (z-index:9) */
 .slide.photo img{width:100%;height:100%;object-fit:cover}
 .slide.photo .ph{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
   opacity:0;transition:opacity .9s ease}
 .slide.photo .ph.on{opacity:1}
-.slide.photo .phct{position:absolute;top:2.4vh;right:1.6vw;z-index:3;
+.slide.photo .phct{position:absolute;top:2.4vh;left:1.6vw;z-index:3;   /* 우상단은 QR 자리 → 카운터는 좌상단 */
   font-family:var(--font-display);font-size:2vh;letter-spacing:.15em;
   color:#fff;background:rgba(6,30,48,.55);padding:.7vh 1vw;border-radius:99px}
 .slide.photo .cap{
@@ -184,6 +194,38 @@ body{
 }
 .slide.photo .cap h2{font-family:var(--font-photo-title);font-size:6.9vh;margin-bottom:1.1vh;color:#fff}   /* 캠퍼스 갤러리 서체 150% */
 .slide.photo .cap p{font-family:var(--font-photo-body);font-size:3.45vh;opacity:.92}  /* 캡션 150% */
+
+/* 사진·포스터 우상단 QR (링크URL 있을 때) — 둥근 모서리, 좌하단 캡션을 가리지 않음.
+   부모 슬라이드가 z-index:10(인사 오버레이 위)이라 QR도 자동으로 인사 위에 표시됨. */
+.slide.photo .photoqr,.slide.poster .photoqr{
+  position:absolute;top:2.4vh;right:1.6vw;z-index:6;
+  background:#fff;padding:1.1vh;border-radius:1.6vh;text-align:center;
+  box-shadow:0 1vh 3vh rgba(0,0,0,.4);
+}
+.slide.photo .photoqr .qr,.slide.poster .photoqr .qr{width:15vh;height:15vh;margin:0 auto}
+.slide.photo .photoqr .qr img,.slide.photo .photoqr .qr canvas,
+.slide.poster .photoqr .qr img,.slide.poster .photoqr .qr canvas{
+  width:100%!important;height:100%!important;border-radius:.8vh;display:block}
+.slide.photo .photoqr .pqlabel,.slide.poster .photoqr .pqlabel{
+  margin-top:.6vh;font-family:var(--font-display);font-weight:700;
+  font-size:1.5vh;letter-spacing:.03em;color:#0c2f47}
+
+/* ── 포스터(세로 이미지) : 가로 화면 보완 = 흐린 배경(같은 이미지) + 세로 원본 + 우측 설명 ── */
+.slide.poster{padding:0;z-index:10;overflow:hidden}
+.slide.poster .pbg{position:absolute;inset:0;background-size:cover;background-position:center;
+  filter:blur(2.6vh) brightness(.42) saturate(1.15);transform:scale(1.2)}
+.slide.poster .pwrap{position:absolute;inset:0;z-index:1;display:flex;align-items:center;
+  gap:3.2vw;padding:4vh 4.5vw}
+.slide.poster .pwrap.solo{justify-content:center}            /* 설명 없으면 이미지 중앙 정렬 */
+.slide.poster .pwrap.solo .pimg{max-width:66%}
+.slide.poster .pimg{max-height:100%;max-width:50%;width:auto;height:auto;object-fit:contain;
+  border-radius:1.6vh;box-shadow:0 2vh 6vh rgba(0,0,0,.55)}
+.slide.poster .pinfo{flex:1;min-width:0;color:#fff}
+.slide.poster .pinfo .eyebrow{background:var(--accent)}
+.slide.poster .pinfo h2{font-family:var(--font-slide-title);font-size:5.2vh;font-weight:700;
+  line-height:1.25;margin:2.4vh 0 2vh;word-break:keep-all;text-shadow:0 .4vh 2vh rgba(0,0,0,.55)}
+.slide.poster .pinfo .body{font-family:var(--font-slide-body);font-size:2.9vh;line-height:1.7;
+  color:#eaf3fb;white-space:pre-line;word-break:keep-all;text-shadow:0 .3vh 1.4vh rgba(0,0,0,.5)}
 
 /* 유형별 자동 디자인 ─ 현황 */
 .statgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(16vw,1fr));gap:1.6vw;margin-top:1vh}
@@ -210,7 +252,7 @@ table.rent td.dt{font-family:var(--font-display);font-weight:700;color:var(--dee
 table.rent td.tm{font-family:var(--font-mono);white-space:nowrap}
 
 /* 유형별 자동 디자인 ─ 환영(웰컴) */
-.slide.welcome{align-items:center;justify-content:center;text-align:center;
+.slide.welcome{align-items:center;justify-content:center;text-align:center;z-index:10;
   background:radial-gradient(ellipse at 50% 32%,rgba(255,255,255,.55),transparent 72%)}
 .slide.welcome .wc-eyebrow{font-family:var(--font-display);font-weight:700;
   font-size:2.3vh;letter-spacing:.55em;color:var(--accent);text-indent:.55em}
@@ -241,13 +283,14 @@ table.rent td.tm{font-family:var(--font-mono);white-space:nowrap}
 }
 
 /* 진행 표시 */
-.dots{position:absolute;bottom:2.2vh;right:2vw;display:flex;gap:.6vw;z-index:5}
+.dots{position:absolute;bottom:2.2vh;right:2vw;display:flex;gap:.6vw;z-index:11}
 .dots i{width:1.2vh;height:1.2vh;border-radius:50%;background:rgba(14,79,122,.25);transition:.3s}
 .dots i.on{background:var(--deep);width:3.4vh;border-radius:99px}
-.slide.photo ~ .dots i{background:rgba(255,255,255,.4)}
+.slide.photo ~ .dots i,.slide.poster ~ .dots i{background:rgba(255,255,255,.4)}
 
 /* ── 우측 1/4 : 시계·정보 패널 ── */
 .side{
+  position:relative;z-index:1;      /* stage 컨텍스트 해제 후에도 구름/효과 위 유지 */
   flex:1;min-width:22vw;display:flex;flex-direction:column;gap:1.4vh;
 }
 .clockcard{
@@ -1113,22 +1156,38 @@ function syncBanner(){
   });
 }
 
-/* 사진 캡션: 슬라이드 시트의 '사진' 행에서 이미지ID→캡션(내용) 매핑을 만들어
-   각 사진에 해당 줄 캡션을 붙인다(Apps Script가 캡션을 뭉개는 문제 우회). */
+/* 드라이브 공유링크/파일ID → 화면 표시용 이미지 URL (doGet의 toImageUrl과 동일 규칙) */
+function toImgUrl(v){
+  const s=String(v||"").trim(); if(!s) return "";
+  if(/^https?:\/\//.test(s) && s.indexOf("drive.google.com")<0) return s;   // 이미 일반 이미지 URL
+  const id=driveId(s); return id ? "https://drive.google.com/thumbnail?id="+id+"&sz=w1920" : s;
+}
+/* 사진 캡션 + 포스터: '슬라이드' 시트를 직접 읽어
+   ① 사진 행 → 이미지ID↔캡션 매핑(Apps Script가 캡션 뭉개는 문제 우회)
+   ② 포스터 행 → 세로 이미지 슬라이드로 직접 주입(Apps Script가 새 유형을 몰라도 동작) */
 const PHOTO_CAPS={};
+let POSTERS_G=[], POSTER_SIG="";
 function syncCaptions(){
   gvizLoad("슬라이드", rows=>{
     if(!rows) return;
+    const posters=[];
     rows.forEach(r=>{
-      // [사용,유형,제목,내용,이미지URL,...]
-      if(String(r[1]||"").trim()!=="사진") return;
+      // [사용,유형,제목,내용,이미지URL,표시초,시작,종료,링크URL]
+      const type=String(r[1]||"").trim();
       if(String(r[0]||"").trim().toUpperCase()!=="Y") return;
-      const cap=String(r[3]||"").trim();
-      // 한 행에 이미지가 여러 줄이면 캡션도 줄 단위로 대응, 아니면 전체 캡션
-      const urls=String(r[4]||"").split(/\n/).map(x=>x.trim()).filter(Boolean);
-      const caps=cap.split(/\n/).map(x=>x.trim());
-      urls.forEach((u,i)=>{ const id=driveId(u); if(id) PHOTO_CAPS[id]=caps[i]!=null&&caps[i]!==""?caps[i]:cap; });
+      if(type==="사진"){
+        const cap=String(r[3]||"").trim();
+        const urls=String(r[4]||"").split(/\n/).map(x=>x.trim()).filter(Boolean);
+        const caps=cap.split(/\n/).map(x=>x.trim());
+        urls.forEach((u,i)=>{ const id=driveId(u); if(id) PHOTO_CAPS[id]=caps[i]!=null&&caps[i]!==""?caps[i]:cap; });
+      } else if(type==="포스터"){
+        const u=String(r[4]||"").split(/\n/).map(x=>x.trim()).filter(Boolean)[0]||"";
+        if(u) posters.push({type:"포스터", title:String(r[2]||""), body:String(r[3]||""),
+          img:toImgUrl(u), sec:(Number(r[5])||10), link:String(r[8]||"").trim()});
+      }
     });
+    const sig=JSON.stringify(posters);
+    if(sig!==POSTER_SIG){ POSTER_SIG=sig; POSTERS_G=posters; if(LAST_DATA) renderAll(LAST_DATA); }
   });
 }
 function capForUrl(url){ return PHOTO_CAPS[driveId(url)]||""; }
@@ -2123,8 +2182,27 @@ function slideHTML(s){
     const bodyLns=String(s.body||"").split(/\n/).map(x=>x.trim()).filter(Boolean);
     const cap0=capForUrl(ph[0].url)||bodyLns[0]||"";
     return `<div class="slide photo" data-type="사진">
-      ${ims}${ct}
+      ${ims}${ct}${photoQrHTML(s.link)}
       <div class="cap"><h2>${esc(s.title)}</h2><p class="capln">${esc(cap0)}</p></div>
+    </div>`;
+  }
+  if(s.type==="포스터"){
+    // 세로 이미지를 가로 화면에 배치: 흐린 배경 + 세로 원본 + (있으면) 우측 설명
+    const purl=(s.photos&&s.photos[0]&&s.photos[0].url)||s.img||"";
+    const cap=String(s.body||"").split(/\n/).map(x=>x.trim()).filter(Boolean).join("\n");
+    const hasText=!!(String(s.title||"").trim()||cap);
+    const info=hasText?`<div class="pinfo">
+        <span class="eyebrow">POSTER · 포스터</span>
+        <h2>${esc(s.title||"").replace(/\n/g,"<br>")}</h2>
+        <div class="body">${esc(cap)}</div>
+      </div>`:"";
+    return `<div class="slide poster" data-type="포스터">
+      <div class="pbg" style="background-image:url('${purl}')"></div>
+      <div class="pwrap${hasText?"":" solo"}">
+        <img class="pimg" src="${purl}" alt="">
+        ${info}
+      </div>
+      ${photoQrHTML(s.link)}
     </div>`;
   }
   if(s.type==="현황"){
@@ -2178,6 +2256,11 @@ function buildNotices(list, secs){
   if(els.length>1) noticeTimer=setTimeout(step,(Number(secs[0])||8)*1000);
 }
 
+/* 사진·포스터 우상단 QR 조각 (링크 없으면 빈 문자열) */
+function photoQrHTML(link){
+  const l=String(link||"").trim();
+  return l ? `<div class="photoqr"><div class="qr" data-link="${esc(l)}"></div><div class="pqlabel">스캔</div></div>` : "";
+}
 /* 링크URL → QR 코드 생성 */
 function makeQRs(){
   document.querySelectorAll(".qr[data-link]").forEach(el=>{
@@ -2186,7 +2269,7 @@ function makeQRs(){
       if(typeof QRCode==="undefined") throw 0;
       new QRCode(el,{text:el.dataset.link,width:512,height:512,
         colorDark:"#0c2f47",colorLight:"#ffffff",correctLevel:QRCode.CorrectLevel.M});
-    }catch(e){ el.closest(".qrcard").style.display="none"; }
+    }catch(e){ const c=el.closest(".qrcard,.photoqr"); if(c) c.style.display="none"; }
   });
 }
 function esc(s){return String(s??"").replace(/[&<>"]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]))}
@@ -2259,7 +2342,9 @@ function renderAll(data){
   appliedTheme="";           // 강제 재적용
   applyThemeSmart();
   applySizes(data.fontSizes);
-  slides=(data.slides||[]).slice().filter(s=>s.type!=="환영");  // API가 준 환영은 제거(여기서 직접 주입)
+  // API가 준 환영·포스터는 제거하고, 여기서 직접(gviz) 주입 → 시트만 고치면 반영
+  slides=(data.slides||[]).slice().filter(s=>s.type!=="환영" && s.type!=="포스터");
+  if(POSTERS_G && POSTERS_G.length) slides=slides.concat(POSTERS_G.map(p=>Object.assign({},p)));
   /* 표시초에 '계속' 입력 시 해당 슬라이드만 고정 게시 (여러 개면 최상단 행 우선) */
   slides.forEach(s=>{ s.hold = s.hold===true || String(s.sec).trim()==="계속"; });
   const holds=slides.filter(s=>s.hold);
