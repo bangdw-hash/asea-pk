@@ -184,7 +184,7 @@ body{
 .slide.photo .ph{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
   opacity:0;transition:opacity .9s ease}
 .slide.photo .ph.on{opacity:1}
-.slide.photo .phct{position:absolute;top:2.4vh;left:1.6vw;z-index:3;   /* 우상단은 QR 자리 → 카운터는 좌상단 */
+.slide.photo .phct{position:absolute;top:2.4vh;left:50%;transform:translateX(-50%);z-index:3;   /* 좌상단=기념촬영 QR, 우상단=내용확인 QR → 카운터는 상단 중앙 */
   font-family:var(--font-display);font-size:2vh;letter-spacing:.15em;
   color:#fff;background:rgba(6,30,48,.55);padding:.7vh 1vw;border-radius:99px}
 .slide.photo .cap{
@@ -2279,7 +2279,7 @@ function buildNotices(list, secs){
 /* 사진·포스터 우상단 QR 조각 (링크 없으면 빈 문자열) */
 function photoQrHTML(link){
   const l=String(link||"").trim();
-  return l ? `<div class="photoqr"><div class="qr" data-link="${esc(l)}"></div><div class="pqlabel">스캔</div></div>` : "";
+  return l ? `<div class="photoqr"><div class="qr" data-link="${esc(l)}"></div><div class="pqlabel">내용 확인하기</div></div>` : "";
 }
 /* 링크URL → QR 코드 생성 */
 function makeQRs(){
@@ -2568,16 +2568,15 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
 
 <!-- ================= 방문 기념촬영 부스 ================= -->
 <style>
-/* 슬라이드 문구(캡션)는 좌하단·좌측 정렬이므로, QR은 슬라이드 영역 '우하단'(진행점 위)에
-   배치해 문구를 가리지 않게 함. 우측 안내 패널도 침범하지 않음. */
-#pb-card{position:fixed;right:27.5vw;bottom:5.5vh;left:auto;z-index:820;display:flex;align-items:center;gap:.9vw;
-  background:rgba(10,17,32,.92);border:1px solid rgba(90,210,255,.4);border-radius:1.6vh;padding:1vh 1vw;
-  box-shadow:0 1.4vh 4vh rgba(0,0,0,.45);backdrop-filter:blur(6px)}
+/* 기념촬영 QR: 슬라이드 좌상단에 작게 (QR 아래 '기념촬영' 한 줄만) */
+#pb-card{position:fixed;left:2.4vw;top:16vh;right:auto;bottom:auto;z-index:820;
+  display:flex;flex-direction:column;align-items:center;gap:.5vh;
+  background:rgba(10,17,32,.82);border:1px solid rgba(90,210,255,.35);border-radius:1.1vh;padding:.8vh;
+  box-shadow:0 1vh 3vh rgba(0,0,0,.4);backdrop-filter:blur(5px)}
 #pb-card.hide{display:none}
-#pb-card #pb-qr{width:9vh;height:9vh;background:#fff;border-radius:.9vh;padding:.5vh;flex:none;line-height:0}
-#pb-card #pb-qr img,#pb-card #pb-qr canvas{width:100%!important;height:100%!important;border-radius:.4vh}
-#pb-card .pb-t b{display:block;color:#8fe3ff;font-size:2vh;font-weight:900;letter-spacing:.01em}
-#pb-card .pb-t span{display:block;color:#cdd8ec;font-size:1.45vh;margin-top:.3vh}
+#pb-card #pb-qr{width:7vh;height:7vh;background:#fff;border-radius:.7vh;padding:.45vh;flex:none;line-height:0}
+#pb-card #pb-qr img,#pb-card #pb-qr canvas{width:100%!important;height:100%!important;border-radius:.35vh}
+#pb-card .pb-t{color:#8fe3ff;font-size:1.5vh;font-weight:800;letter-spacing:.02em;line-height:1}
 
 /* 공항 컨셉 부스: 여백 프레임 + 코너 브래킷 + 하단 둥근 배너 */
 #pb-stage{--pb-acc:#ffd27f;position:fixed;inset:0;z-index:1000;display:none;
@@ -2621,7 +2620,7 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
 
 <div id="pb-card" class="hide">
   <div id="pb-qr"></div>
-  <div class="pb-t"><b>📸 방문 기념촬영</b><span>휴대폰으로 QR 스캔</span></div>
+  <div class="pb-t">기념촬영</div>
 </div>
 <div id="pb-stage">
   <div id="pb-frame">
