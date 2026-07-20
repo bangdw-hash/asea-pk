@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
+<title>ASEA 방문 기념촬영</title>
+<script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
+<style>
+  :root{--bg:#0a1120;--card:#111c30;--line:#22314a;--txt:#eaf3fb;--dim:#8fa6c4;--acc:#5ad2ff;--gold:#ffd27f}
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{font-family:'Apple SD Gothic Neo','Malgun Gothic',system-ui,sans-serif;background:
+    radial-gradient(120% 80% at 50% 0%,#12244a,#0a1120 70%);color:var(--txt);
+    display:flex;flex-direction:column;min-height:100dvh;padding:env(safe-area-inset-top) 18px env(safe-area-inset-bottom)}
+  header{padding:22px 2px 10px;text-align:center}
+  header .k{font-weight:800;font-size:20px;letter-spacing:.02em}
+  header .k b{color:var(--acc)}
+  header .s{margin-top:5px;font-size:13px;color:var(--dim)}
+  .status{margin:6px auto 14px;font-size:13px;color:var(--dim);display:flex;align-items:center;gap:7px;justify-content:center}
+  .dot{width:9px;height:9px;border-radius:50%;background:#f2a33c;box-shadow:0 0 8px #f2a33c}
+  .dot.on{background:#37e08b;box-shadow:0 0 8px #37e08b}
+  .dot.off{background:#e0555a;box-shadow:0 0 8px #e0555a}
+  main{flex:1;display:flex;flex-direction:column;gap:14px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px}
+  label{display:block;font-size:13px;color:var(--dim);margin-bottom:8px;font-weight:700}
+  textarea{width:100%;background:#0c162a;border:1px solid var(--line);border-radius:12px;color:var(--txt);
+    font-size:19px;line-height:1.4;padding:13px 14px;resize:none;font-family:inherit;min-height:84px}
+  textarea:focus{outline:none;border-color:var(--acc)}
+  .hint{font-size:12px;color:var(--dim);margin-top:8px}
+  .shoot{margin-top:2px;width:100%;border:0;border-radius:18px;padding:20px;font-size:22px;font-weight:900;
+    color:#06213a;background:linear-gradient(180deg,#8fe3ff,#2ea6d8);
+    box-shadow:0 10px 26px rgba(46,166,216,.35);letter-spacing:.02em;transition:transform .08s}
+  .shoot:active{transform:scale(.98)}
+  .shoot:disabled{filter:grayscale(.5) brightness(.8);box-shadow:none}
+  .big{font-size:15px;color:var(--dim);text-align:center;padding:10px}
+  /* 촬영 결과 */
+  #result{display:none;gap:14px;flex-direction:column}
+  #result.show{display:flex}
+  #shot{width:100%;border-radius:16px;border:1px solid var(--line);display:block}
+  .row{display:flex;gap:10px}
+  .btn{flex:1;border:0;border-radius:16px;padding:16px;font-size:17px;font-weight:800;letter-spacing:.02em}
+  .save{color:#06213a;background:linear-gradient(180deg,#ffe0a3,#ffc24d);box-shadow:0 8px 20px rgba(255,194,77,.3)}
+  .retry{color:var(--txt);background:#1c2b45;border:1px solid var(--line)}
+  .savehint{font-size:12px;color:var(--dim);text-align:center;margin-top:-4px}
+  footer{text-align:center;font-size:11px;color:#5a7396;padding:14px 0 8px;letter-spacing:.04em}
+  .codebox{display:flex;gap:8px;margin-top:10px}
+  .codebox input{flex:1;background:#0c162a;border:1px solid var(--line);border-radius:12px;color:var(--txt);
+    font-size:20px;letter-spacing:.3em;text-align:center;padding:12px;text-transform:uppercase}
+  .codebox button{border:0;border-radius:12px;padding:0 18px;font-weight:800;background:var(--acc);color:#06213a}
+  .flashmsg{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#0c162a;border:1px solid var(--line);
+    color:var(--txt);padding:11px 18px;border-radius:99px;font-size:14px;opacity:0;transition:opacity .3s;pointer-events:none;z-index:9}
+  .flashmsg.on{opacity:1}
+</style>
+</head>
+<body>
+<header>
+  <div class="k"><b>ASEA</b> 방문 기념촬영</div>
+  <div class="s">전광판 화면을 보며 촬영하세요 📸</div>
+</header>
+<div class="status"><span class="dot" id="dot"></span><span id="st">연결 중…</span></div>
+
+<main>
+  <!-- 코드 입력(스캔 없이 접속 시) -->
+  <div class="card" id="codeCard" style="display:none">
+    <label>전광판에 표시된 코드</label>
+    <div class="codebox"><input id="codeIn" maxlength="5" placeholder="ABCDE" autocomplete="off"><button id="codeGo">연결</button></div>
+  </div>
+
+  <!-- 컨트롤 -->
+  <div id="ctrl">
+    <div class="card">
+      <label>화면에 넣을 문구</label>
+      <textarea id="cap" maxlength="60" placeholder="예) ASEA 방문 기념 · 2026.07.20 🎉"></textarea>
+      <div class="hint">입력하면 전광판 하단에 실시간으로 표시됩니다. (최대 60자)</div>
+    </div>
+    <button class="shoot" id="shoot">📸 촬영하기</button>
+    <div class="big" id="ctrlHint">문구를 적고 촬영하기를 누르면 3·2·1 카운트 후 찍혀요.</div>
+  </div>
+
+  <!-- 결과 -->
+  <div id="result">
+    <img id="shot" alt="기념 사진">
+    <div class="row">
+      <button class="btn save" id="save">📥 저장 / 공유</button>
+      <button class="btn retry" id="retry">↻ 다시 촬영</button>
+    </div>
+    <div class="savehint" id="saveHint">저장을 누르면 사진 앱에 저장하거나 공유할 수 있어요.</div>
+  </div>
+</main>
+
+<footer>ASEA AVIATION OCCUPATIONAL TRAINING COLLEGE · 아세아항공직업전문학교</footer>
+<div class="flashmsg" id="flash"></div>
+
+<script>
+/* ===== MQTT 릴레이(전광판 pb26/ 네임스페이스) — index.html의 NET과 동일 구조 ===== */
+const MQTT_URLS=['wss://broker.emqx.io:8084/mqtt','wss://broker.hivemq.com:8884/mqtt'];
+function _rid(n){let s='';const c='abcdefghijklmnopqrstuvwxyz0123456789';for(let i=0;i<(n||10);i++)s+=c[Math.random()*c.length|0];return s}
+function _emitter(){const h={};return{on(e,cb){(h[e]=h[e]||[]).push(cb);return this},_emit(e,a){(h[e]||[]).forEach(f=>{try{f(a)}catch(x){}})}}}
+const PBNET={
+ _connect(lwt,onUp,onDown){let idx=0;
+  const opts={clean:true,connectTimeout:8000,reconnectPeriod:2500,keepalive:30,clientId:'pb-'+_rid(12)};
+  if(lwt)opts.will=lwt;
+  const mk=()=>{const cl=(window.MQTTMOCK?window.MQTTMOCK:mqtt).connect(MQTT_URLS[idx],opts);let first=true;
+    cl.on('connect',()=>{onUp&&onUp(cl,first);first=false});
+    cl.on('close',()=>onDown&&onDown());
+    cl.on('error',()=>{if(first&&idx<MQTT_URLS.length-1){idx++;try{cl.end(true)}catch(e){}mk();}});
+    return cl;};
+  return mk();},
+ join(code){const T=t=>'pb26/'+code+'/'+t, id=_rid(12);
+  const conn=Object.assign(_emitter(),{id,open:false,cl:null,
+    send(d){if(this.cl){try{this.cl.publish(T('toTV'),JSON.stringify({from:id,t:'msg',d}))}catch(x){}}},
+    close(){this.open=false;try{this.cl&&this.cl.publish(T('toTV'),JSON.stringify({from:id,t:'bye'}));this.cl&&this.cl.end()}catch(x){}}});
+  let opened=false;
+  const cl=this._connect({topic:T('toTV'),payload:JSON.stringify({from:id,t:'bye'}),qos:0},
+    (c)=>{conn.cl=c;c.subscribe(T('toC/'+id),{qos:0});c.subscribe(T('pres'),{qos:0});
+      c.publish(T('toTV'),JSON.stringify({from:id,t:'hello'}));},()=>{});
+  conn._to=setTimeout(()=>{if(!opened)conn._emit('error',{type:'peer-unavailable'})},9000);
+  cl.on('message',(topic,buf)=>{
+    if(topic===T('pres')){if(buf.toString()==='0'&&opened){conn.open=false;conn._emit('close')}return}
+    if(topic!==T('toC/'+id))return;
+    let m;try{m=JSON.parse(buf.toString())}catch(e){return}
+    if(m.t==='_bye'){conn.open=false;conn._emit('close');return}
+    if(!opened){opened=true;clearTimeout(conn._to);conn.open=true;conn._emit('open')}
+    conn._emit('data',m);});
+  return conn;}
+};
+
+/* ===== 컨트롤러 로직 ===== */
+const $=id=>document.getElementById(id);
+const P=new URLSearchParams(location.search);
+let CODE=(P.get('c')||P.get('code')||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,5);
+let conn=null, chunks=null, gotURL="";
+
+function flash(msg){const f=$('flash');f.textContent=msg;f.classList.add('on');clearTimeout(flash._t);flash._t=setTimeout(()=>f.classList.remove('on'),1800)}
+function setStatus(txt,cls){$('st').textContent=txt;$('dot').className='dot'+(cls?(' '+cls):'')}
+
+function connect(code){
+  CODE=code; setStatus('연결 중…');
+  conn=PBNET.join(code);
+  conn.on('open',()=>{ setStatus('전광판 연결됨 · 촬영 준비 완료',' on'); flash('연결되었어요!'); sendCap(); });
+  conn.on('close',()=>{ setStatus('연결 끊김 · 재연결 시도 중…',' off'); });
+  conn.on('error',e=>{ setStatus('전광판을 찾지 못했습니다 · 코드 확인',' off'); showCodeInput(); });
+  conn.on('data',onData);
+}
+function onData(m){
+  if(!m||!m.t)return;
+  if(m.t==='ready'){ $('ctrlHint').textContent='준비 완료! 촬영하기를 누르세요.'; }
+  else if(m.t==='count'){ $('shoot').textContent=m.n>0?('📸 '+m.n):'📸 찰칵!'; }
+  else if(m.t==='shot_reset'){ $('shoot').disabled=false; $('shoot').textContent='📸 촬영하기'; }
+  else if(m.t==='img_start'){ chunks={total:m.total,mime:m.mime||'image/jpeg',got:0,parts:new Array(m.total)}; }
+  else if(m.t==='img'){ if(chunks&&chunks.parts[m.i]===undefined){chunks.parts[m.i]=m.d;chunks.got++;
+      if(chunks.got===chunks.total) finishImg(); } }
+}
+function finishImg(){
+  const b64=chunks.parts.join(''); gotURL='data:'+chunks.mime+';base64,'+b64; chunks=null;
+  $('shot').src=gotURL;
+  $('result').classList.add('show'); $('ctrl').style.display='none';
+  $('shoot').disabled=false; $('shoot').textContent='📸 촬영하기';
+  flash('사진이 도착했어요!');
+}
+
+let capT=null;
+function sendCap(){ if(conn&&conn.open) conn.send({t:'cap',text:$('cap').value}); }
+$('cap').addEventListener('input',()=>{ clearTimeout(capT); capT=setTimeout(sendCap,180); });
+
+$('shoot').addEventListener('click',()=>{
+  if(!conn||!conn.open){ flash('전광판 연결을 확인하세요'); return; }
+  $('shoot').disabled=true; $('shoot').textContent='📸 준비…';
+  conn.send({t:'shoot'});
+});
+$('retry').addEventListener('click',()=>{
+  $('result').classList.remove('show'); $('ctrl').style.display='';
+  gotURL=""; $('shoot').disabled=false; $('shoot').textContent='📸 촬영하기';
+});
+
+/* 저장/공유 — 이메일 없이 폰에 바로. iOS/안드로이드 모두 네이티브 저장 시트 활용 */
+$('save').addEventListener('click',async()=>{
+  if(!gotURL)return;
+  const fname='ASEA_기념_'+new Date().toISOString().replace(/[-:T]/g,'').slice(0,14)+'.jpg';
+  try{
+    const blob=await (await fetch(gotURL)).blob();
+    const file=new File([blob],fname,{type:blob.type||'image/jpeg'});
+    if(navigator.canShare && navigator.canShare({files:[file]})){
+      await navigator.share({files:[file],title:'ASEA 방문 기념',text:'ASEA 방문 기념 사진'});
+      return;
+    }
+    // 폴백: 다운로드 링크(안드로이드 크롬 등에서 바로 저장)
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a'); a.href=url; a.download=fname; document.body.appendChild(a); a.click();
+    setTimeout(()=>{URL.revokeObjectURL(url);a.remove();},1500);
+    $('saveHint').textContent='저장되지 않으면 사진을 길게 눌러 "이미지 저장"을 선택하세요.';
+  }catch(e){
+    // 최종 폴백: 새 탭에 이미지 → 길게 눌러 저장
+    const w=window.open(); if(w){w.document.write('<img src="'+gotURL+'" style="width:100%">');}
+    $('saveHint').textContent='사진을 길게 눌러 "이미지 저장"을 선택하세요.';
+  }
+});
+
+function showCodeInput(){ $('codeCard').style.display=''; }
+$('codeGo').addEventListener('click',()=>{
+  const v=$('codeIn').value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,5);
+  if(v.length<4){flash('코드를 확인하세요');return;}
+  $('codeCard').style.display='none'; connect(v);
+});
+
+if(CODE) connect(CODE); else { setStatus('코드를 입력하세요',' off'); showCodeInput(); }
+</script>
+</body>
+</html>

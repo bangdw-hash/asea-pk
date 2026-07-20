@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=IBM+Plex+Sans+KR:wght@400;500;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
 <style>
 /* ══════════════════════════════════════════════
    ASEA AVIATION LOBBY SIGNAGE
@@ -1700,7 +1701,7 @@ function camHint(msg){
   else el.style.display="none";
 }
 function greetApply(){
-  const want=!!LAST.greetOn;
+  const want=!!LAST.greetOn && !window.PB_ON;   // 기념촬영 부스 중에는 인사 카메라 양보
   if(want && !GREET.stream && !GREET.trying) greetStart();
   if(!want){ if(GREET.stream) greetStop(); camHint(""); }
 }
@@ -1732,7 +1733,7 @@ function greetStart(){
 }
 /* 웹캠이 나중에 연결되는 경우 대비: 30초마다 재시도 */
 setInterval(()=>{
-  if(LAST.greetOn && !GREET.stream && !GREET.trying) greetStart();
+  if(LAST.greetOn && !window.PB_ON && !GREET.stream && !GREET.trying) greetStart();
 },30000);
 function greetStop(){
   clearInterval(GREET.timer); GREET.timer=null;
@@ -2562,6 +2563,203 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
       try{frame.contentWindow.location.reload()}catch(e){frame.src=frame.src}
     }
   },5000);
+})();
+</script>
+
+<!-- ================= 방문 기념촬영 부스 ================= -->
+<style>
+#pb-card{position:fixed;left:2vw;bottom:17vh;z-index:820;display:flex;align-items:center;gap:1vw;   /* 골든킥 배너(bottom:6.5vh) 위로 */
+  background:rgba(10,17,32,.9);border:1px solid rgba(90,210,255,.35);border-radius:1.6vh;padding:1.1vh 1.1vw;
+  box-shadow:0 1.4vh 4vh rgba(0,0,0,.42);backdrop-filter:blur(6px)}
+#pb-card.hide{display:none}
+#pb-card #pb-qr{width:9vh;height:9vh;background:#fff;border-radius:.9vh;padding:.5vh;flex:none;line-height:0}
+#pb-card #pb-qr img,#pb-card #pb-qr canvas{width:100%!important;height:100%!important;border-radius:.4vh}
+#pb-card .pb-t b{display:block;color:#8fe3ff;font-size:2vh;font-weight:900;letter-spacing:.01em}
+#pb-card .pb-t span{display:block;color:#cdd8ec;font-size:1.45vh;margin-top:.3vh}
+
+#pb-stage{position:fixed;inset:0;z-index:1000;background:#000;display:none}
+#pb-stage.on{display:block}
+#pb-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1);background:#000}
+#pb-frameline{position:absolute;inset:2.6vh 2.6vw;border:.4vh solid rgba(255,255,255,.45);border-radius:2.4vh;pointer-events:none}
+#pb-count{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:3;
+  font-family:var(--font-display);font-size:42vh;font-weight:900;color:#fff;text-shadow:0 1vh 6vh rgba(0,0,0,.6);opacity:0}
+#pb-count.tick{animation:pbcount 1s ease}
+@keyframes pbcount{0%{opacity:0;transform:scale(1.7)}22%{opacity:1;transform:scale(1)}80%{opacity:1}100%{opacity:0;transform:scale(.8)}}
+#pb-flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:4}
+#pb-flash.on{animation:pbflash .5s ease}
+@keyframes pbflash{0%{opacity:0}10%{opacity:.95}100%{opacity:0}}
+#pb-cap{position:absolute;left:0;right:0;bottom:0;z-index:2;padding:9vh 5vw 5vh;text-align:center;color:#fff;
+  font-family:var(--font-slide-title);font-size:5vh;font-weight:800;line-height:1.3;word-break:keep-all;white-space:pre-line;
+  background:linear-gradient(transparent,rgba(0,0,0,.72));text-shadow:0 .4vh 2vh rgba(0,0,0,.6)}
+#pb-msg{position:absolute;top:3vh;left:50%;transform:translateX(-50%);z-index:5;
+  background:rgba(10,17,32,.82);color:#8fe3ff;padding:1.2vh 2.6vw;border-radius:99px;font-size:2.4vh;font-weight:800;
+  border:1px solid rgba(90,210,255,.4)}
+#pb-brand{position:absolute;top:3.2vh;right:3vw;z-index:5;color:rgba(255,255,255,.75);
+  font-family:var(--font-display);font-size:1.9vh;letter-spacing:.15em}
+</style>
+
+<div id="pb-card" class="hide">
+  <div id="pb-qr"></div>
+  <div class="pb-t"><b>📸 방문 기념촬영</b><span>휴대폰으로 QR 스캔</span></div>
+</div>
+<div id="pb-stage">
+  <video id="pb-video" playsinline muted></video>
+  <div id="pb-frameline"></div>
+  <div id="pb-brand">ASEA AVIATION · 방문 기념촬영</div>
+  <div id="pb-msg"></div>
+  <div id="pb-count"></div>
+  <div id="pb-flash"></div>
+  <div id="pb-cap" style="display:none"></div>
+</div>
+
+<script>
+/* ===== 기념촬영: MQTT 호스트(pb26/) + 부스 제어 (index.html NET과 동일 구조) ===== */
+(function(){
+  const PB_URLS=['wss://broker.emqx.io:8084/mqtt','wss://broker.hivemq.com:8884/mqtt'];
+  function rid(n){let s='';const c='abcdefghijklmnopqrstuvwxyz0123456789';for(let i=0;i<(n||10);i++)s+=c[Math.random()*c.length|0];return s}
+  function emitter(){const h={};return{on(e,cb){(h[e]=h[e]||[]).push(cb);return this},_emit(e,a){(h[e]||[]).forEach(f=>{try{f(a)}catch(x){}})}}}
+  const PBNET={
+   _connect(lwt,onUp,onDown){let idx=0;
+    const opts={clean:true,connectTimeout:8000,reconnectPeriod:2500,keepalive:30,clientId:'pbtv-'+rid(12)};
+    if(lwt)opts.will=lwt;
+    const mk=()=>{const cl=(window.MQTTMOCK?window.MQTTMOCK:mqtt).connect(PB_URLS[idx],opts);let first=true;
+      cl.on('connect',()=>{onUp&&onUp(cl,first);first=false});
+      cl.on('close',()=>onDown&&onDown());
+      cl.on('error',()=>{if(first&&idx<PB_URLS.length-1){idx++;try{cl.end(true)}catch(e){}mk();}});
+      return cl;};
+    return mk();},
+   host(code,onConnection){const T=t=>'pb26/'+code+'/'+t, conns={};
+    const H={code,conns,cl:null,ready:false,onReady:null};
+    const cl=this._connect({topic:T('pres'),payload:'0',retain:true,qos:0},
+      (c)=>{H.cl=c;H.ready=true;c.subscribe(T('toTV'),{qos:0});c.publish(T('pres'),'1',{retain:true,qos:0});H.onReady&&H.onReady();},
+      ()=>{H.ready=false});
+    cl.on('message',(topic,buf)=>{
+      if(topic!=='pb26/'+code+'/toTV')return;
+      let m;try{m=JSON.parse(buf.toString())}catch(e){return}
+      const from=m.from;if(!from)return;
+      if(m.t==='bye'){const c=conns[from];if(c){c.open=false;delete conns[from];c._emit('close')}return}
+      if(m.t==='hello'){ if(conns[from])return;
+        const conn=Object.assign(emitter(),{id:from,open:false,
+          send(d){if(H.cl&&this.open){try{H.cl.publish(T('toC/'+from),JSON.stringify(d))}catch(x){}}},
+          close(){if(this.open){this.open=false;try{H.cl&&H.cl.publish(T('toC/'+from),JSON.stringify({t:'_bye'}))}catch(x){}}delete conns[from]}});
+        conns[from]=conn;onConnection(conn);setTimeout(()=>{conn.open=true;conn._emit('open')},0);return; }
+      const c=conns[from];if(c)c._emit('data',m.d);
+    });
+    return H;},
+  };
+
+  const $=id=>document.getElementById(id);
+  const stage=$('pb-stage'),video=$('pb-video'),capEl=$('pb-cap'),countEl=$('pb-count'),flashEl=$('pb-flash'),msgEl=$('pb-msg'),card=$('pb-card');
+  const BOOTH={host:null,conn:null,code:null,stream:null,active:false,exitT:null,shooting:false};
+  window.PB_ON=false;
+
+  function code5(){const A='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';let s='';for(let i=0;i<5;i++)s+=A[Math.random()*A.length|0];return s;}
+  function ctrlUrl(code){ return new URL('photo.html?c='+code, location.href).href; }
+  function showQR(code){ const box=$('pb-qr'); if(!box)return; box.innerHTML='';
+    try{ new QRCode(box,{text:ctrlUrl(code),width:200,height:200,colorDark:'#0a1120',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M}); card.classList.remove('hide'); }catch(e){}
+  }
+  function msg(t){ msgEl.textContent=t; }
+  function setCap(t){ const v=String(t||''); capEl.textContent=v; capEl.style.display=v.trim()?'':'none'; }
+
+  function startHost(){
+    if(typeof mqtt==='undefined' && !window.MQTTMOCK){ return; }   // 라이브러리 없으면 부스 비활성
+    BOOTH.code=code5();
+    BOOTH.host=PBNET.host(BOOTH.code,onConn);
+    BOOTH.host.onReady=()=>showQR(BOOTH.code);
+    showQR(BOOTH.code);
+  }
+  function onConn(conn){
+    if(BOOTH.conn && BOOTH.conn!==conn){ try{BOOTH.conn.close()}catch(e){} }
+    BOOTH.conn=conn;
+    conn.on('open',()=>{ enterBooth(); conn.send({t:'ready'}); setCap(''); });
+    conn.on('data',m=>onData(conn,m));
+    conn.on('close',()=>{ if(BOOTH.conn===conn) scheduleExit(); });
+  }
+  function onData(conn,m){
+    if(!m||!m.t)return;
+    if(m.t==='cap') setCap(m.text);
+    else if(m.t==='shoot') doShoot(conn);
+  }
+
+  function enterBooth(){
+    if(BOOTH.active){ clearTimeout(BOOTH.exitT); return; }
+    BOOTH.active=true; window.PB_ON=true;
+    try{ if(typeof greetStop==='function') greetStop(); }catch(e){}
+    stage.classList.add('on'); card.classList.add('hide');
+    msg('휴대폰에서 문구를 적고 촬영하세요 📸');
+    startCam();
+  }
+  function scheduleExit(){ clearTimeout(BOOTH.exitT); BOOTH.exitT=setTimeout(exitBooth,1800); }
+  function exitBooth(){
+    BOOTH.active=false; window.PB_ON=false; BOOTH.shooting=false;
+    stage.classList.remove('on'); card.classList.remove('hide'); setCap('');
+    if(BOOTH.stream){ BOOTH.stream.getTracks().forEach(t=>t.stop()); BOOTH.stream=null; }
+    // 인사 카메라 복구
+    setTimeout(()=>{ try{ if(!window.PB_ON && window.LAST && LAST.greetOn && typeof GREET!=='undefined' && !GREET.stream && typeof greetStart==='function') greetStart(); }catch(e){} },900);
+  }
+  function startCam(){
+    if(BOOTH.stream){ video.srcObject=BOOTH.stream; video.play().catch(()=>{}); return; }
+    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){ msg('이 브라우저는 카메라 미지원'); return; }
+    navigator.mediaDevices.getUserMedia({video:{width:{ideal:1280},height:{ideal:720},facingMode:'user'},audio:false})
+      .then(st=>{ BOOTH.stream=st; video.srcObject=st; video.play().catch(()=>{}); })
+      .catch(e=>{ msg('카메라를 열 수 없습니다 ('+(e&&e.name||'')+')'); });
+  }
+
+  function doShoot(conn){
+    if(BOOTH.shooting||!BOOTH.active)return; BOOTH.shooting=true;
+    let n=3;
+    const tick=()=>{
+      if(n>0){ showCount(n); try{conn.send({t:'count',n})}catch(e){} n--; setTimeout(tick,1000); }
+      else { try{conn.send({t:'count',n:0})}catch(e){} doFlash(); setTimeout(()=>capture(conn),140); }
+    };
+    tick();
+  }
+  function showCount(n){ countEl.textContent=n; countEl.classList.remove('tick'); void countEl.offsetWidth; countEl.classList.add('tick'); }
+  function doFlash(){ flashEl.classList.remove('on'); void flashEl.offsetWidth; flashEl.classList.add('on'); }
+
+  function drawCaption(ctx,cw,ch,text){
+    const grd=ctx.createLinearGradient(0,ch*0.55,0,ch);
+    grd.addColorStop(0,'rgba(0,0,0,0)'); grd.addColorStop(1,'rgba(0,0,0,.72)');
+    ctx.fillStyle=grd; ctx.fillRect(0,ch*0.5,cw,ch*0.5);
+    ctx.fillStyle='#fff'; ctx.textAlign='center'; ctx.textBaseline='alphabetic';
+    const fs=Math.round(ch*0.062); ctx.font='800 '+fs+'px sans-serif';
+    const maxw=cw*0.9; const raw=text.replace(/\n/g,' ').split(/(\s+)/); let line='',lines=[];
+    for(const w of raw){ const test=line+w; if(ctx.measureText(test).width>maxw&&line){lines.push(line.trim());line=w;} else line=test; }
+    if(line.trim())lines.push(line.trim()); lines=lines.slice(-3);
+    let y=ch-ch*0.06-(lines.length-1)*fs*1.25;
+    ctx.shadowColor='rgba(0,0,0,.55)'; ctx.shadowBlur=fs*0.3;
+    lines.forEach(ln=>{ ctx.fillText(ln,cw/2,y); y+=fs*1.25; });
+    ctx.shadowBlur=0;
+  }
+  function capture(conn){
+    const vw=video.videoWidth||1280, vh=video.videoHeight||720;
+    const cw=Math.min(1280,vw||1280), scale=cw/(vw||1280), ch=Math.round((vh||720)*scale);
+    const cv=document.createElement('canvas'); cv.width=cw; cv.height=ch;
+    const ctx=cv.getContext('2d');
+    ctx.save(); ctx.translate(cw,0); ctx.scale(-1,1); try{ctx.drawImage(video,0,0,cw,ch);}catch(e){} ctx.restore();
+    const text=(capEl.textContent||'').trim(); if(text) drawCaption(ctx,cw,ch,text);
+    ctx.font='700 '+Math.round(ch*0.028)+'px sans-serif'; ctx.fillStyle='rgba(255,255,255,.82)';
+    ctx.textAlign='right'; ctx.textBaseline='top'; ctx.shadowColor='rgba(0,0,0,.5)'; ctx.shadowBlur=ch*0.01;
+    ctx.fillText('ASEA AVIATION · 방문 기념', cw-cw*0.03, ch*0.035); ctx.shadowBlur=0;
+    let url; try{ url=cv.toDataURL('image/jpeg',0.85); }catch(e){ url=""; }
+    if(url) sendImg(conn,url);
+    BOOTH.shooting=false;
+    msg('📥 휴대폰에서 사진을 저장하세요!');
+    setTimeout(()=>{ if(BOOTH.active) msg('휴대폰에서 문구를 적고 촬영하세요 📸'); },6000);
+  }
+  function sendImg(conn,dataUrl){
+    const semi=dataUrl.indexOf(';'), comma=dataUrl.indexOf(',');
+    const mime=dataUrl.slice(5,semi>5?semi:11)||'image/jpeg';
+    const b64=dataUrl.slice(comma+1);
+    const CH=40000, total=Math.ceil(b64.length/CH);
+    try{ conn.send({t:'img_start',total,mime}); }catch(e){}
+    for(let i=0;i<total;i++){ try{ conn.send({t:'img',i,d:b64.slice(i*CH,(i+1)*CH)}); }catch(e){} }
+  }
+
+  // 부스 시작(라이브러리 로드 후)
+  function boot(){ if(typeof mqtt!=='undefined' || window.MQTTMOCK) startHost(); else setTimeout(boot,1000); }
+  setTimeout(boot,600);
+  window.PB_BOOTH=BOOTH;   // 테스트/디버그용
 })();
 </script>
 </body>
