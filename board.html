@@ -1167,14 +1167,22 @@ function toImgUrl(v){
    ② 포스터 행 → 세로 이미지 슬라이드로 직접 주입(Apps Script가 새 유형을 몰라도 동작) */
 const PHOTO_CAPS={};
 let POSTERS_G=[], POSTER_SIG="";
+/* 슬라이드별 제목/내용 글자 크기(%) — 제목(C열) 기준 매핑. J열=제목크기%, K열=내용크기% */
+const SLIDE_SIZES={};
+function slKey(t){ return String(t||"").replace(/\s+/g," ").trim(); }
+function slScale(v){ const s=String(v==null?"":v).trim(); if(s==="") return null;
+  const n=Number(s); return isFinite(n)?Math.min(200,Math.max(0,n)):null; }
 function syncCaptions(){
   gvizLoad("슬라이드", rows=>{
     if(!rows) return;
-    const posters=[];
+    const posters=[]; const sizes={};
     rows.forEach(r=>{
-      // [사용,유형,제목,내용,이미지URL,표시초,시작,종료,링크URL]
+      // [사용,유형,제목,내용,이미지URL,표시초,시작,종료,링크URL,제목크기%,내용크기%]
       const type=String(r[1]||"").trim();
       if(String(r[0]||"").trim().toUpperCase()!=="Y") return;
+      // 제목별 크기 오버라이드(모든 유형 공통)
+      const key=slKey(r[2]); const ts=slScale(r[9]), bs=slScale(r[10]);
+      if(key && (ts!=null||bs!=null)) sizes[key]={t:ts,b:bs};
       if(type==="사진"){
         const cap=String(r[3]||"").trim();
         const urls=String(r[4]||"").split(/\n/).map(x=>x.trim()).filter(Boolean);
@@ -1186,11 +1194,22 @@ function syncCaptions(){
           img:toImgUrl(u), sec:(Number(r[5])||10), link:String(r[8]||"").trim()});
       }
     });
-    const sig=JSON.stringify(posters);
-    if(sig!==POSTER_SIG){ POSTER_SIG=sig; POSTERS_G=posters; if(LAST_DATA) renderAll(LAST_DATA); }
+    const sig=JSON.stringify(posters)+"|"+JSON.stringify(sizes);
+    if(sig!==POSTER_SIG){
+      POSTER_SIG=sig; POSTERS_G=posters;
+      for(const k in SLIDE_SIZES) delete SLIDE_SIZES[k];
+      Object.assign(SLIDE_SIZES, sizes);
+      if(LAST_DATA) renderAll(LAST_DATA);
+    }
   });
 }
 function capForUrl(url){ return PHOTO_CAPS[driveId(url)]||""; }
+/* 슬라이드 제목으로 개별 크기 오버라이드 → 인라인 font-size (없으면 빈 문자열=서체 시트 기본값 사용) */
+function slSz(title, base, which){
+  const m=SLIDE_SIZES[slKey(title)]; if(!m) return "";
+  const p = which==="t" ? m.t : m.b; if(p==null) return "";
+  return ` style="font-size:${(base*p/100).toFixed(2)}vh"`;
+}
 
 /* ── 서체 시트 직접 읽기 (gviz) ─────────────────────────────
    Apps Script가 서체표를 뭉개도 화면이 정확히 반영되도록, '서체' 시트를
@@ -2183,7 +2202,7 @@ function slideHTML(s){
     const cap0=capForUrl(ph[0].url)||bodyLns[0]||"";
     return `<div class="slide photo" data-type="사진">
       ${ims}${ct}${photoQrHTML(s.link)}
-      <div class="cap"><h2>${esc(s.title)}</h2><p class="capln">${esc(cap0)}</p></div>
+      <div class="cap"><h2${slSz(s.title,6.9,"t")}>${esc(s.title)}</h2><p class="capln"${slSz(s.title,3.45,"b")}>${esc(cap0)}</p></div>
     </div>`;
   }
   if(s.type==="포스터"){
@@ -2193,8 +2212,8 @@ function slideHTML(s){
     const hasText=!!(String(s.title||"").trim()||cap);
     const info=hasText?`<div class="pinfo">
         <span class="eyebrow">POSTER · 포스터</span>
-        <h2>${esc(s.title||"").replace(/\n/g,"<br>")}</h2>
-        <div class="body">${esc(cap)}</div>
+        <h2${slSz(s.title,5.2,"t")}>${esc(s.title||"").replace(/\n/g,"<br>")}</h2>
+        <div class="body"${slSz(s.title,2.9,"b")}>${esc(cap)}</div>
       </div>`:"";
     return `<div class="slide poster" data-type="포스터">
       <div class="pbg" style="background-image:url('${purl}')"></div>
@@ -2211,7 +2230,7 @@ function slideHTML(s){
       .map(a=>`<div class="stat"><div class="v">${esc(a[1].trim())}</div><div class="k">${esc(a[0].trim())}</div></div>`).join("");
     return `<div class="slide" data-type="현황">
       <span class="eyebrow">CAMPUS STATUS · 현황</span>
-      <h2>${esc(s.title)}</h2>
+      <h2${slSz(s.title,6.4,"t")}>${esc(s.title)}</h2>
       <div class="statgrid">${items}</div>
       <div class="meta">아세아항공직업전문학교 기획처</div>
     </div>`;
@@ -2224,8 +2243,8 @@ function slideHTML(s){
     </div>` : "";
   return `<div class="slide${link?" has-qr":""}" data-type="${ev?"행사":"공지"}">
     <span class="eyebrow ${ev?"ev":""}">${ev?"EVENT · 행사":"NOTICE · 공지"}</span>
-    <h2>${esc(s.title).replace(/\n/g,"<br>")}</h2>
-    <div class="body">${esc(s.body||"")}</div>
+    <h2${slSz(s.title,6.4,"t")}>${esc(s.title).replace(/\n/g,"<br>")}</h2>
+    <div class="body"${slSz(s.title,3,"b")}>${esc(s.body||"")}</div>
     ${qr}
     <div class="meta">아세아항공직업전문학교</div>
   </div>`;
