@@ -179,7 +179,7 @@ body{
 .slide .meta{margin-top:auto;font-size:2vh;color:var(--dim);letter-spacing:.05em}
 
 /* 유형별 자동 디자인 ─ 사진 */
-.slide.photo{padding:0;z-index:10}   /* 갤러리 캡션이 방문자 인사 위로 (z-index:9) */
+.slide.photo{padding:0}   /* 사진은 인사(z-index:9) 아래 → 안내원이 사진 위로 보이게. 캡션은 좌하단이라 가림 최소 */
 .slide.photo img{width:100%;height:100%;object-fit:cover}
 .slide.photo .ph{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
   opacity:0;transition:opacity .9s ease}
@@ -2568,34 +2568,55 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
 
 <!-- ================= 방문 기념촬영 부스 ================= -->
 <style>
-#pb-card{position:fixed;left:2vw;bottom:17vh;z-index:820;display:flex;align-items:center;gap:1vw;   /* 골든킥 배너(bottom:6.5vh) 위로 */
-  background:rgba(10,17,32,.9);border:1px solid rgba(90,210,255,.35);border-radius:1.6vh;padding:1.1vh 1.1vw;
-  box-shadow:0 1.4vh 4vh rgba(0,0,0,.42);backdrop-filter:blur(6px)}
+/* 슬라이드 문구(캡션)는 좌하단·좌측 정렬이므로, QR은 슬라이드 영역 '우하단'(진행점 위)에
+   배치해 문구를 가리지 않게 함. 우측 안내 패널도 침범하지 않음. */
+#pb-card{position:fixed;right:27.5vw;bottom:5.5vh;left:auto;z-index:820;display:flex;align-items:center;gap:.9vw;
+  background:rgba(10,17,32,.92);border:1px solid rgba(90,210,255,.4);border-radius:1.6vh;padding:1vh 1vw;
+  box-shadow:0 1.4vh 4vh rgba(0,0,0,.45);backdrop-filter:blur(6px)}
 #pb-card.hide{display:none}
 #pb-card #pb-qr{width:9vh;height:9vh;background:#fff;border-radius:.9vh;padding:.5vh;flex:none;line-height:0}
 #pb-card #pb-qr img,#pb-card #pb-qr canvas{width:100%!important;height:100%!important;border-radius:.4vh}
 #pb-card .pb-t b{display:block;color:#8fe3ff;font-size:2vh;font-weight:900;letter-spacing:.01em}
 #pb-card .pb-t span{display:block;color:#cdd8ec;font-size:1.45vh;margin-top:.3vh}
 
-#pb-stage{position:fixed;inset:0;z-index:1000;background:#000;display:none}
+/* 공항 컨셉 부스: 여백 프레임 + 코너 브래킷 + 하단 둥근 배너 */
+#pb-stage{--pb-acc:#ffd27f;position:fixed;inset:0;z-index:1000;display:none;
+  background:radial-gradient(120% 90% at 50% 0%,#0c1f38,#050b16 72%)}
 #pb-stage.on{display:block}
-#pb-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1);background:#000}
-#pb-frameline{position:absolute;inset:2.6vh 2.6vw;border:.4vh solid rgba(255,255,255,.45);border-radius:2.4vh;pointer-events:none}
-#pb-count{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:3;
-  font-family:var(--font-display);font-size:42vh;font-weight:900;color:#fff;text-shadow:0 1vh 6vh rgba(0,0,0,.6);opacity:0}
+#pb-frame{position:absolute;inset:3.2vh 3vw;border-radius:2.8vh;overflow:hidden;
+  border:.35vh solid var(--pb-acc);box-shadow:0 0 0 .7vh rgba(8,16,30,.7),0 2vh 6vh rgba(0,0,0,.55)}
+#pb-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1);background:#0a1120}
+.pb-cnr{position:absolute;width:5.5vh;height:5.5vh;border:.55vh solid var(--pb-acc);z-index:3;pointer-events:none;opacity:.92}
+.pb-cnr.tl{top:1.6vh;left:1.2vw;border-right:0;border-bottom:0;border-radius:1.2vh 0 0 0}
+.pb-cnr.tr{top:1.6vh;right:1.2vw;border-left:0;border-bottom:0;border-radius:0 1.2vh 0 0}
+.pb-cnr.bl{bottom:1.6vh;left:1.2vw;border-right:0;border-top:0;border-radius:0 0 0 1.2vh}
+.pb-cnr.br{bottom:1.6vh;right:1.2vw;border-left:0;border-top:0;border-radius:0 0 1.2vh 0}
+#pb-gate{position:absolute;top:2.4vh;left:2.2vw;z-index:4;color:var(--pb-acc);font-family:var(--font-display);
+  font-size:1.9vh;letter-spacing:.22em;background:rgba(6,15,28,.55);padding:.8vh 1.4vw;border-radius:99px;
+  border:1px solid var(--pb-acc)}
+#pb-count{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:6;
+  font-family:var(--font-display);font-size:44vh;font-weight:900;color:#fff;text-shadow:0 1vh 6vh rgba(0,0,0,.6);opacity:0}
 #pb-count.tick{animation:pbcount 1s ease}
 @keyframes pbcount{0%{opacity:0;transform:scale(1.7)}22%{opacity:1;transform:scale(1)}80%{opacity:1}100%{opacity:0;transform:scale(.8)}}
-#pb-flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:4}
+#pb-flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:7}
 #pb-flash.on{animation:pbflash .5s ease}
 @keyframes pbflash{0%{opacity:0}10%{opacity:.95}100%{opacity:0}}
-#pb-cap{position:absolute;left:0;right:0;bottom:0;z-index:2;padding:9vh 5vw 5vh;text-align:center;color:#fff;
-  font-family:var(--font-slide-title);font-size:5vh;font-weight:800;line-height:1.3;word-break:keep-all;white-space:pre-line;
-  background:linear-gradient(transparent,rgba(0,0,0,.72));text-shadow:0 .4vh 2vh rgba(0,0,0,.6)}
-#pb-msg{position:absolute;top:3vh;left:50%;transform:translateX(-50%);z-index:5;
-  background:rgba(10,17,32,.82);color:#8fe3ff;padding:1.2vh 2.6vw;border-radius:99px;font-size:2.4vh;font-weight:800;
-  border:1px solid rgba(90,210,255,.4)}
-#pb-brand{position:absolute;top:3.2vh;right:3vw;z-index:5;color:rgba(255,255,255,.75);
-  font-family:var(--font-display);font-size:1.9vh;letter-spacing:.15em}
+#pb-msg{position:absolute;top:2.4vh;left:50%;transform:translateX(-50%);z-index:5;
+  background:rgba(10,17,32,.82);color:#8fe3ff;padding:1.1vh 2.4vw;border-radius:99px;font-size:2.2vh;font-weight:800;
+  border:1px solid rgba(90,210,255,.4);white-space:nowrap}
+#pb-banner{position:absolute;left:50%;bottom:4.5vh;transform:translateX(-50%);z-index:5;
+  max-width:86%;min-width:36vw;padding:2vh 3.6vw 2.2vh;text-align:center;
+  background:linear-gradient(180deg,rgba(12,31,56,.9),rgba(8,20,38,.94));
+  border:.3vh solid var(--pb-acc);border-radius:2.6vh;backdrop-filter:blur(8px);
+  box-shadow:0 1.6vh 5vh rgba(0,0,0,.55)}
+#pb-banner .pb-air{display:flex;align-items:center;justify-content:center;gap:1vw;
+  color:var(--pb-acc);font-family:var(--font-display);font-size:1.7vh;letter-spacing:.2em;margin-bottom:1vh;opacity:.92}
+#pb-banner .pb-air i{width:4vw;height:1px;background:linear-gradient(90deg,transparent,var(--pb-acc))}
+#pb-banner .pb-air i.r{background:linear-gradient(90deg,var(--pb-acc),transparent)}
+#pb-btext{color:#fff;font-family:var(--font-slide-title);font-weight:800;font-size:5vh;line-height:1.2;
+  white-space:nowrap;word-break:keep-all}
+#pb-bsub{margin-top:1vh;color:#cfe0f2;font-family:var(--font-display);font-size:2vh;letter-spacing:.05em}
+#pb-bsub b{color:var(--pb-acc);font-weight:800}
 </style>
 
 <div id="pb-card" class="hide">
@@ -2603,13 +2624,19 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
   <div class="pb-t"><b>📸 방문 기념촬영</b><span>휴대폰으로 QR 스캔</span></div>
 </div>
 <div id="pb-stage">
-  <video id="pb-video" playsinline muted></video>
-  <div id="pb-frameline"></div>
-  <div id="pb-brand">ASEA AVIATION · 방문 기념촬영</div>
-  <div id="pb-msg"></div>
-  <div id="pb-count"></div>
-  <div id="pb-flash"></div>
-  <div id="pb-cap" style="display:none"></div>
+  <div id="pb-frame">
+    <video id="pb-video" playsinline muted></video>
+    <div class="pb-cnr tl"></div><div class="pb-cnr tr"></div><div class="pb-cnr bl"></div><div class="pb-cnr br"></div>
+    <div id="pb-gate">✈ ASEA AVIATION · BOARDING</div>
+    <div id="pb-msg"></div>
+    <div id="pb-count"></div>
+    <div id="pb-flash"></div>
+    <div id="pb-banner">
+      <div class="pb-air"><i></i>✈ 방문 기념<i class="r"></i></div>
+      <div id="pb-btext">아세아항공직업전문학교 방문을 환영합니다</div>
+      <div id="pb-bsub"><b>아세아항공직업전문학교</b> · <span id="pb-bdate"></span></div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -2649,8 +2676,10 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
   };
 
   const $=id=>document.getElementById(id);
-  const stage=$('pb-stage'),video=$('pb-video'),capEl=$('pb-cap'),countEl=$('pb-count'),flashEl=$('pb-flash'),msgEl=$('pb-msg'),card=$('pb-card');
-  const BOOTH={host:null,conn:null,code:null,stream:null,active:false,exitT:null,shooting:false};
+  const stage=$('pb-stage'),video=$('pb-video'),btextEl=$('pb-btext'),bdateEl=$('pb-bdate'),
+        countEl=$('pb-count'),flashEl=$('pb-flash'),msgEl=$('pb-msg'),card=$('pb-card');
+  const DEFAULT_TEXT='아세아항공직업전문학교 방문을 환영합니다';
+  const BOOTH={host:null,conn:null,code:null,stream:null,active:false,exitT:null,shooting:false,sec:3,dateT:null,capText:'',capDate:''};
   window.PB_ON=false;
 
   function code5(){const A='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';let s='';for(let i=0;i<5;i++)s+=A[Math.random()*A.length|0];return s;}
@@ -2659,7 +2688,33 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
     try{ new QRCode(box,{text:ctrlUrl(code),width:200,height:200,colorDark:'#0a1120',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M}); card.classList.remove('hide'); }catch(e){}
   }
   function msg(t){ msgEl.textContent=t; }
-  function setCap(t){ const v=String(t||''); capEl.textContent=v; capEl.style.display=v.trim()?'':'none'; }
+  /* ── 배경(프레임) 테마 ── 컨트롤러에서 선택 → TV·캡처 색상/게이트 문구 반영 */
+  const PB_THEMES={
+    navy:  {name:'ASEA 네이비', acc:'#ffd27f', gate:'✈ ASEA AVIATION · BOARDING',        bg:'radial-gradient(120% 90% at 50% 0%,#0c1f38,#050b16 72%)'},
+    a320:  {name:'A320 코크핏', acc:'#00e5ff', gate:'✈ AIRBUS A320 · BOARDING',            bg:'radial-gradient(120% 90% at 50% 0%,#08202b,#03121a 72%)'},
+    runway:{name:'활주로',      acc:'#ffb400', gate:'🛫 RUNWAY 34 · CLEARED FOR TAKEOFF',   bg:'radial-gradient(120% 90% at 50% 0%,#14120f,#070605 72%)'},
+    tower: {name:'관제탑',      acc:'#37e08b', gate:'📡 ASEA TOWER · RKSS SEOUL',           bg:'radial-gradient(120% 90% at 50% 0%,#03150d,#020a06 72%)'},
+  };
+  function applyTheme(id){
+    const t=PB_THEMES[id]||PB_THEMES.navy; BOOTH.theme=(id in PB_THEMES)?id:'navy'; BOOTH.themeObj=t;
+    stage.style.setProperty('--pb-acc',t.acc); stage.style.background=t.bg;
+    const g=$('pb-gate'); if(g) g.textContent=t.gate;
+  }
+  function pad2(n){return String(n).padStart(2,'0');}
+  function nowStr(){const n=new Date();return n.getFullYear()+'.'+pad2(n.getMonth()+1)+'.'+pad2(n.getDate())+'  '+pad2(n.getHours())+':'+pad2(n.getMinutes());}
+  function fitBanner(){
+    const t=btextEl; if(!t)return; t.style.fontSize='';
+    const avail=window.innerWidth*0.86 - window.innerWidth*0.072;   // 배너 max-width 86% - 좌우 패딩
+    let fs=parseFloat(getComputedStyle(t).fontSize)||40, guard=0;
+    while(t.scrollWidth>avail && fs>16 && guard++<90){ fs-=1; t.style.fontSize=fs+'px'; }
+  }
+  function setCap(t){
+    BOOTH.capText=String(t||'');
+    btextEl.textContent = BOOTH.capText.trim() ? BOOTH.capText.replace(/\n/g,' ') : DEFAULT_TEXT;
+    fitBanner();
+  }
+  function startDate(){ if(BOOTH.dateT)return; const upd=()=>{ if(bdateEl) bdateEl.textContent=nowStr(); }; upd(); BOOTH.dateT=setInterval(upd,10000); }
+  function stopDate(){ clearInterval(BOOTH.dateT); BOOTH.dateT=null; }
 
   function startHost(){
     if(typeof mqtt==='undefined' && !window.MQTTMOCK){ return; }   // 라이브러리 없으면 부스 비활성
@@ -2671,28 +2726,32 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
   function onConn(conn){
     if(BOOTH.conn && BOOTH.conn!==conn){ try{BOOTH.conn.close()}catch(e){} }
     BOOTH.conn=conn;
-    conn.on('open',()=>{ enterBooth(); conn.send({t:'ready'}); setCap(''); });
+    conn.on('open',()=>{ enterBooth(); conn.send({t:'ready',themes:Object.keys(PB_THEMES).map(k=>({id:k,name:PB_THEMES[k].name}))}); setCap(''); });
     conn.on('data',m=>onData(conn,m));
     conn.on('close',()=>{ if(BOOTH.conn===conn) scheduleExit(); });
   }
   function onData(conn,m){
     if(!m||!m.t)return;
     if(m.t==='cap') setCap(m.text);
-    else if(m.t==='shoot') doShoot(conn);
+    else if(m.t==='theme') applyTheme(m.id);
+    else if(m.t==='sec') BOOTH.sec=Math.max(1,Math.min(30,Number(m.sec)||3));
+    else if(m.t==='shoot') doShoot(conn, Number(m.sec)||BOOTH.sec||3);
+    else if(m.t==='quit') exitBooth();
   }
 
   function enterBooth(){
     if(BOOTH.active){ clearTimeout(BOOTH.exitT); return; }
     BOOTH.active=true; window.PB_ON=true;
     try{ if(typeof greetStop==='function') greetStop(); }catch(e){}
+    applyTheme(BOOTH.theme||'navy');
     stage.classList.add('on'); card.classList.add('hide');
-    msg('휴대폰에서 문구를 적고 촬영하세요 📸');
+    msg('휴대폰에서 문구를 적고 촬영하세요 📸'); startDate();
     startCam();
   }
   function scheduleExit(){ clearTimeout(BOOTH.exitT); BOOTH.exitT=setTimeout(exitBooth,1800); }
   function exitBooth(){
     BOOTH.active=false; window.PB_ON=false; BOOTH.shooting=false;
-    stage.classList.remove('on'); card.classList.remove('hide'); setCap('');
+    stage.classList.remove('on'); card.classList.remove('hide'); stopDate(); setCap('');
     if(BOOTH.stream){ BOOTH.stream.getTracks().forEach(t=>t.stop()); BOOTH.stream=null; }
     // 인사 카메라 복구
     setTimeout(()=>{ try{ if(!window.PB_ON && window.LAST && LAST.greetOn && typeof GREET!=='undefined' && !GREET.stream && typeof greetStart==='function') greetStart(); }catch(e){} },900);
@@ -2705,9 +2764,9 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
       .catch(e=>{ msg('카메라를 열 수 없습니다 ('+(e&&e.name||'')+')'); });
   }
 
-  function doShoot(conn){
+  function doShoot(conn, sec){
     if(BOOTH.shooting||!BOOTH.active)return; BOOTH.shooting=true;
-    let n=3;
+    let n=Math.max(1,Math.min(30,Number(sec)||3));
     const tick=()=>{
       if(n>0){ showCount(n); try{conn.send({t:'count',n})}catch(e){} n--; setTimeout(tick,1000); }
       else { try{conn.send({t:'count',n:0})}catch(e){} doFlash(); setTimeout(()=>capture(conn),140); }
@@ -2717,31 +2776,68 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
   function showCount(n){ countEl.textContent=n; countEl.classList.remove('tick'); void countEl.offsetWidth; countEl.classList.add('tick'); }
   function doFlash(){ flashEl.classList.remove('on'); void flashEl.offsetWidth; flashEl.classList.add('on'); }
 
-  function drawCaption(ctx,cw,ch,text){
-    const grd=ctx.createLinearGradient(0,ch*0.55,0,ch);
-    grd.addColorStop(0,'rgba(0,0,0,0)'); grd.addColorStop(1,'rgba(0,0,0,.72)');
-    ctx.fillStyle=grd; ctx.fillRect(0,ch*0.5,cw,ch*0.5);
-    ctx.fillStyle='#fff'; ctx.textAlign='center'; ctx.textBaseline='alphabetic';
-    const fs=Math.round(ch*0.062); ctx.font='800 '+fs+'px sans-serif';
-    const maxw=cw*0.9; const raw=text.replace(/\n/g,' ').split(/(\s+)/); let line='',lines=[];
-    for(const w of raw){ const test=line+w; if(ctx.measureText(test).width>maxw&&line){lines.push(line.trim());line=w;} else line=test; }
-    if(line.trim())lines.push(line.trim()); lines=lines.slice(-3);
-    let y=ch-ch*0.06-(lines.length-1)*fs*1.25;
-    ctx.shadowColor='rgba(0,0,0,.55)'; ctx.shadowBlur=fs*0.3;
-    lines.forEach(ln=>{ ctx.fillText(ln,cw/2,y); y+=fs*1.25; });
-    ctx.shadowBlur=0;
+  /* ── 캡처: 공항 컨셉 프레임 + 코너 + 게이트 + 하단 배너를 합성해 기념 사진 생성 ── */
+  function roundRect(ctx,x,y,w,h,r){ r=Math.min(r,w/2,h/2); ctx.beginPath();
+    ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+  function drawBrackets(ctx,fx,fy,fw,fh,ch,acc){
+    const L=ch*0.075, off=ch*0.03, lw=Math.max(3,ch*0.006);
+    ctx.strokeStyle=acc; ctx.lineWidth=lw; ctx.lineCap='round';
+    [[fx+off,fy+off,1,1],[fx+fw-off,fy+off,-1,1],[fx+off,fy+fh-off,1,-1],[fx+fw-off,fy+fh-off,-1,-1]]
+      .forEach(([x,y,sx,sy])=>{ ctx.beginPath(); ctx.moveTo(x+sx*L,y); ctx.lineTo(x,y); ctx.lineTo(x,y+sy*L); ctx.stroke(); });
+  }
+  function drawPill(ctx,x,y,text,fs,acc){
+    ctx.font='700 '+Math.round(fs)+'px sans-serif'; ctx.textBaseline='middle';
+    const padX=fs*0.9, padY=fs*0.5, tw=ctx.measureText(text).width, w=tw+padX*2, h=fs+padY*2;
+    ctx.fillStyle='rgba(6,15,28,.55)'; roundRect(ctx,x,y,w,h,h/2); ctx.fill();
+    ctx.strokeStyle=acc; ctx.globalAlpha=.35; ctx.lineWidth=Math.max(1,fs*0.06); ctx.stroke(); ctx.globalAlpha=1;
+    ctx.fillStyle=acc; ctx.textAlign='left'; ctx.fillText(text,x+padX,y+h/2);
+  }
+  function drawBanner(ctx,cw,ch,fx,fy,fw,fh,acc){
+    const text=btextEl.textContent||DEFAULT_TEXT;
+    const sub='아세아항공직업전문학교 · '+(BOOTH.capDate||nowStr());
+    let mfs=ch*0.062, guard=0; const maxTextW=fw*0.82;
+    ctx.font='800 '+mfs+'px sans-serif';
+    while(ctx.measureText(text).width>maxTextW && mfs>ch*0.03 && guard++<90){ mfs-=1; ctx.font='800 '+mfs+'px sans-serif'; }
+    const mtw=ctx.measureText(text).width;
+    const airfs=ch*0.024, sfs=ch*0.03, padX=cw*0.035, padY=ch*0.032, gap=ch*0.016;
+    const bw=Math.min(fw*0.92, Math.max(fw*0.36, mtw+padX*2));
+    const bh=airfs+gap+mfs+gap+sfs+padY*2;
+    const bx=cw/2-bw/2, by=fy+fh-bh-ch*0.05;
+    const bgrd=ctx.createLinearGradient(0,by,0,by+bh); bgrd.addColorStop(0,'rgba(12,31,56,.92)'); bgrd.addColorStop(1,'rgba(8,20,38,.95)');
+    ctx.fillStyle=bgrd; roundRect(ctx,bx,by,bw,bh,ch*0.03); ctx.fill();
+    ctx.strokeStyle=acc; ctx.lineWidth=Math.max(2,ch*0.0035); ctx.stroke();
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    let y=by+padY+airfs/2;
+    ctx.font='700 '+Math.round(airfs)+'px sans-serif'; ctx.fillStyle=acc; ctx.fillText('✈  방문 기념', cw/2, y);
+    y+=airfs/2+gap+mfs/2;
+    ctx.font='800 '+Math.round(mfs)+'px sans-serif'; ctx.fillStyle='#fff'; ctx.fillText(text, cw/2, y);
+    y+=mfs/2+gap+sfs/2;
+    ctx.font='700 '+Math.round(sfs)+'px sans-serif'; ctx.fillStyle='#cfe0f2'; ctx.fillText(sub, cw/2, y);
+  }
+  function drawComposite(ctx,cw,ch){
+    const acc=(BOOTH.themeObj&&BOOTH.themeObj.acc)||'#ffb400';
+    ctx.fillStyle='#071426'; ctx.fillRect(0,0,cw,ch);
+    const fx=cw*0.03, fy=ch*0.045, fw=cw-2*fx, fh=ch-2*fy, fr=Math.round(ch*0.04);
+    const vw=video.videoWidth||1280, vh=video.videoHeight||720, vAR=vw/vh, fAR=fw/fh;
+    let dw,dh; if(vAR>fAR){ dh=fh; dw=fh*vAR; } else { dw=fw; dh=fw/vAR; }
+    const dx=fx+(fw-dw)/2, dy=fy+(fh-dh)/2;
+    ctx.save(); roundRect(ctx,fx,fy,fw,fh,fr); ctx.clip();
+    ctx.translate(cw,0); ctx.scale(-1,1);
+    try{ ctx.drawImage(video, cw-dx-dw, dy, dw, dh); }catch(e){ ctx.fillStyle='#0a1120'; ctx.fillRect(0,0,cw,ch); }
+    ctx.restore();
+    ctx.save(); roundRect(ctx,fx,fy,fw,fh,fr); ctx.lineWidth=Math.max(2,ch*0.004); ctx.strokeStyle=acc; ctx.globalAlpha=.6; ctx.stroke(); ctx.restore();
+    drawBrackets(ctx,fx,fy,fw,fh,ch,acc);
+    drawPill(ctx, fx+cw*0.012, fy+ch*0.022, (BOOTH.themeObj&&BOOTH.themeObj.gate)||'✈ ASEA AVIATION · BOARDING', ch*0.026, acc);
+    drawBanner(ctx,cw,ch,fx,fy,fw,fh,acc);
   }
   function capture(conn){
-    const vw=video.videoWidth||1280, vh=video.videoHeight||720;
-    const cw=Math.min(1280,vw||1280), scale=cw/(vw||1280), ch=Math.round((vh||720)*scale);
+    BOOTH.capDate=nowStr();
+    const cw=1280, ch=720;
     const cv=document.createElement('canvas'); cv.width=cw; cv.height=ch;
     const ctx=cv.getContext('2d');
-    ctx.save(); ctx.translate(cw,0); ctx.scale(-1,1); try{ctx.drawImage(video,0,0,cw,ch);}catch(e){} ctx.restore();
-    const text=(capEl.textContent||'').trim(); if(text) drawCaption(ctx,cw,ch,text);
-    ctx.font='700 '+Math.round(ch*0.028)+'px sans-serif'; ctx.fillStyle='rgba(255,255,255,.82)';
-    ctx.textAlign='right'; ctx.textBaseline='top'; ctx.shadowColor='rgba(0,0,0,.5)'; ctx.shadowBlur=ch*0.01;
-    ctx.fillText('ASEA AVIATION · 방문 기념', cw-cw*0.03, ch*0.035); ctx.shadowBlur=0;
-    let url; try{ url=cv.toDataURL('image/jpeg',0.85); }catch(e){ url=""; }
+    drawComposite(ctx,cw,ch);
+    let url; try{ url=cv.toDataURL('image/jpeg',0.86); }catch(e){ url=""; }
     if(url) sendImg(conn,url);
     BOOTH.shooting=false;
     msg('📥 휴대폰에서 사진을 저장하세요!');
