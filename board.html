@@ -2594,8 +2594,10 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
 .pb-cnr.bl{bottom:1.6vh;left:1.2vw;border-right:0;border-top:0;border-radius:0 0 0 1.2vh}
 .pb-cnr.br{bottom:1.6vh;right:1.2vw;border-left:0;border-top:0;border-radius:0 0 1.2vh 0}
 #pb-gate{position:absolute;top:2.4vh;left:2.2vw;z-index:4;color:var(--pb-acc);font-family:var(--font-display);
-  font-size:1.9vh;letter-spacing:.22em;background:rgba(6,15,28,.55);padding:.8vh 1.4vw;border-radius:99px;
+  font-size:1.9vh;letter-spacing:.22em;background:rgba(6,15,28,.55);padding:.8vh 1.4vw;border-radius:1.2vh;
   border:1px solid var(--pb-acc)}
+#pb-planes{position:absolute;inset:0;z-index:4;pointer-events:none;overflow:hidden}
+#pb-planes img{position:absolute;will-change:transform;filter:drop-shadow(0 .8vh 1.4vh rgba(0,0,0,.32))}
 #pb-count{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:6;
   font-family:var(--font-display);font-size:44vh;font-weight:900;color:#fff;text-shadow:0 1vh 6vh rgba(0,0,0,.6);opacity:0}
 #pb-count.tick{animation:pbcount 1s ease}
@@ -2631,6 +2633,7 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
     <video id="pb-video" playsinline muted></video>
     <canvas id="pb-seg"></canvas>
     <div class="pb-cnr tl"></div><div class="pb-cnr tr"></div><div class="pb-cnr bl"></div><div class="pb-cnr br"></div>
+    <div id="pb-planes"></div>
     <div id="pb-gate">✈ ASEA AVIATION · BOARDING</div>
     <div id="pb-msg"></div>
     <div id="pb-count"></div>
@@ -2684,7 +2687,7 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
   const stage=$('pb-stage'),video=$('pb-video'),btextEl=$('pb-btext'),bdateEl=$('pb-bdate'),
         countEl=$('pb-count'),flashEl=$('pb-flash'),msgEl=$('pb-msg'),card=$('pb-card');
   const DEFAULT_TEXT='아세아항공직업전문학교 방문을 환영합니다';
-  const BOOTH={host:null,conn:null,code:null,stream:null,active:false,exitT:null,idleT:null,shooting:false,sec:3,lang:'ko',bg:false,bgimg:'',dateT:null,capText:'',capDate:''};
+  const BOOTH={host:null,conn:null,code:null,stream:null,active:false,exitT:null,idleT:null,shooting:false,sec:3,lang:'ko',bg:false,bgimg:'',dateT:null,capText:'',capDate:'',planes:[],planeN:0};
   const PB_IDLE_MS=20000;   // 입력 없이 20초 → 자동으로 메인 화면 복귀(중간에 멈춰도, 촬영 완료 후에도)
   window.PB_ON=false;
 
@@ -2714,6 +2717,89 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
     else if(k==='grid'){ ctx.strokeStyle='rgba(55,224,139,.14)';ctx.lineWidth=1; for(let x=0;x<w;x+=64){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();} for(let y=0;y<h;y+=64){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();} }
   }
   function getBg(theme,w,h){ const key=theme+w+'x'+h; if(!bgCache[key]){const c=document.createElement('canvas');c.width=w;c.height=h;drawThemeBg(c.getContext('2d'),w,h,theme);bgCache[key]=c;} return bgCache[key]; }
+
+  /* ── ✈ 날아가는 비행기 잡기: 이모지가 아닌 리얼한 여객기 측면 실루엣(음영·치트라인·창문·엔진·꼬리 도장) ──
+     · 컨트롤러에서 1~6대 선택 → 매번 기종/크기/위치/각도/방향을 랜덤 배치
+     · 라이브 화면(DOM)과 캡처 사진(canvas) 모두 동일 레이아웃으로 표현 → 사람이 비행기를 잡는 듯한 재미 요소
+     · data URI SVG라 캔버스 오염(CORS) 없이 촬영 이미지에도 안전하게 합성됨 */
+  function pbShade(hex,f){ const n=parseInt(hex.slice(1),16); let r=(n>>16)&255,g=(n>>8)&255,b=n&255;
+    r=Math.round(r*f);g=Math.round(g*f);b=Math.round(b*f); return '#'+((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1); }
+  function planeSVG(c){
+    const body=c.body, dark=pbShade(body,.72), win=c.win||'#12314f', st=c.stripe, tail=c.tail;
+    let windows=''; for(let x=104;x<=214;x+=8){ windows+='<rect x="'+x+'" y="54.5" width="3.4" height="4.2" rx="1.4" fill="'+win+'"/>'; }
+    const svg='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 130">'
+      +'<defs>'
+      +'<linearGradient id="fb" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset=".46" stop-color="'+body+'"/><stop offset=".72" stop-color="'+body+'"/><stop offset="1" stop-color="'+dark+'"/></linearGradient>'
+      +'<linearGradient id="wg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="'+pbShade(body,.92)+'"/><stop offset="1" stop-color="'+dark+'"/></linearGradient>'
+      +'<linearGradient id="eg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e9eef2"/><stop offset="1" stop-color="#5f6b76"/></linearGradient>'
+      +'<radialGradient id="sh" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="rgba(20,40,60,.28)"/><stop offset="1" stop-color="rgba(20,40,60,0)"/></radialGradient>'
+      +'</defs>'
+      +'<ellipse cx="150" cy="118" rx="96" ry="9" fill="url(#sh)"/>'
+      +'<path d="M156 68 L96 116 L124 116 L188 70 Z" fill="url(#wg)" opacity=".72"/>'
+      +'<path d="M70 60 L40 16 L33 18 L54 62 Z" fill="'+tail+'"/>'
+      +'<path d="M70 60 L52 30 L47 32 L58 62 Z" fill="'+pbShade(tail,.8)+'"/>'
+      +'<path d="M66 66 L26 80 L40 70 L70 62 Z" fill="url(#wg)"/>'
+      +'<path d="M64 58 Q62 52 74 50 L232 49 Q249 50 249 61 Q249 71 232 72 L150 72 Q104 72 82 68 Q68 65 64 62 Z" fill="url(#fb)"/>'
+      +'<path d="M78 63.4 L246 62.4 L246 66 Q246 67 244 67 L150 68 Q108 68 84 65.4 Z" fill="'+st+'"/>'
+      +'<path d="M232 52 Q244 52.5 245.5 57 L234 57.5 Z" fill="'+win+'"/>'
+      +windows
+      +'<path d="M176 66 L112 122 L146 122 L206 68 Z" fill="url(#wg)"/>'
+      +'<ellipse cx="150" cy="98" rx="15" ry="8.2" fill="url(#eg)"/>'
+      +'<ellipse cx="150" cy="98" rx="15" ry="8.2" fill="none" stroke="'+dark+'" stroke-width="1"/>'
+      +'<ellipse cx="164" cy="98" rx="3.2" ry="7" fill="#2b333b"/>'
+      +'</svg>';
+    return 'data:image/svg+xml;utf8,'+encodeURIComponent(svg);
+  }
+  const PB_PLANE_TYPES=[
+    {body:'#e9eef4', stripe:'#1f6fb2', tail:'#1f6fb2'},   // ASEA 블루
+    {body:'#f2eef0', stripe:'#c0392b', tail:'#c0392b'},   // 레드윙
+    {body:'#f4f1e9', stripe:'#c79a3a', tail:'#0d2a44'},   // 골드
+    {body:'#eaf2f1', stripe:'#149c8e', tail:'#0e5c55'},   // 틸
+    {body:'#eef1f5', stripe:'#0d2a44', tail:'#0d2a44'},   // 네이비
+    {body:'#f0edf5', stripe:'#6c4bb0', tail:'#3d2a66'},   // 퍼플
+  ];
+  const planeURICache={}, planeImgCache={};
+  function planeURI(ti){ if(planeURICache[ti]==null) planeURICache[ti]=planeSVG(PB_PLANE_TYPES[ti]); return planeURICache[ti]; }
+  function planeImg(ti){ if(!planeImgCache[ti]){ const im=new Image(); im.src=planeURI(ti); planeImgCache[ti]=im; } return planeImgCache[ti]; }
+  PB_PLANE_TYPES.forEach((_,i)=>planeImg(i));   // 미리 로드(촬영 시 즉시 합성)
+  function layoutPlanes(n){
+    n=Math.max(0,Math.min(6,n|0)); BOOTH.planeN=n;
+    const arr=[], usedX=[];
+    for(let i=0;i<n;i++){
+      const ti=Math.floor(Math.random()*PB_PLANE_TYPES.length);
+      const scale=0.09+Math.random()*0.13;                    // 화면 너비 대비 9~22%
+      let x,tries=0; do{ x=0.13+Math.random()*0.74; tries++; }while(tries<10 && usedX.some(u=>Math.abs(u-x)<0.15));
+      usedX.push(x);
+      const y=0.10+Math.random()*0.40;                        // 배너 위쪽(상단 밴드)
+      const rot=-16+Math.random()*26, flip=Math.random()<0.5?-1:1;
+      arr.push({ti,x,y,scale,rot,flip});
+    }
+    BOOTH.planes=arr; renderPlanes();
+  }
+  function renderPlanes(){
+    const box=$('pb-planes'); if(!box) return;
+    if(!BOOTH.planes.length){ box.innerHTML=''; return; }
+    const fw=box.clientWidth||1280, fh=box.clientHeight||720;
+    box.innerHTML='';
+    BOOTH.planes.forEach(p=>{
+      const im=document.createElement('img'); im.src=planeURI(p.ti);
+      const w=p.scale*fw; im.style.width=w+'px';
+      im.style.left=(p.x*fw)+'px'; im.style.top=(p.y*fh)+'px';
+      im.style.transform='translate(-50%,-50%) rotate('+p.rot+'deg) scaleX('+p.flip+')';
+      box.appendChild(im);
+    });
+  }
+  function drawPlanes(ctx,cw,ch){
+    if(!BOOTH.planes.length) return;
+    BOOTH.planes.forEach(p=>{
+      const im=planeImg(p.ti); if(!im.complete||!im.naturalWidth) return;
+      const w=p.scale*cw, h=w*(im.naturalHeight/im.naturalWidth), cx=p.x*cw, cy=p.y*ch;
+      ctx.save(); ctx.translate(cx,cy); ctx.rotate(p.rot*Math.PI/180); ctx.scale(p.flip,1);
+      ctx.shadowColor='rgba(0,0,0,.32)'; ctx.shadowBlur=ch*0.02; ctx.shadowOffsetY=ch*0.012;
+      try{ ctx.drawImage(im,-w/2,-h/2,w,h); }catch(e){}
+      ctx.restore();
+    });
+  }
   /* 마스크 경계 선명화: MediaPipe 마스크는 저해상도·소프트 엣지라 그대로 확대하면 흐릿해진다.
      출력 해상도로 키운 뒤 0/1로 임계처리(가장자리에 좁은 안티앨리어싱 밴드만 남김) → 누끼 경계가 또렷해짐.
      alpha 인코딩·luminance 인코딩 어느 쪽이든 동작하도록 a*lum 조합을 사용한다. */
@@ -2867,6 +2953,7 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
     else if(m.t==='bgimg') BOOTH.bgimg = (m.id && m.id!=='theme') ? m.id : '';
     else if(m.t==='sec') BOOTH.sec=Math.max(1,Math.min(30,Number(m.sec)||3));
     else if(m.t==='shoot') doShoot(conn, Number(m.sec)||BOOTH.sec||3);
+    else if(m.t==='plane') layoutPlanes(Number(m.n)||0);
     else if(m.t==='quit') exitBooth();
   }
 
@@ -2894,6 +2981,7 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
     clearTimeout(BOOTH.idleT); BOOTH.idleT=null;
     setBg(false);
     stage.classList.remove('on'); card.classList.remove('hide'); stopDate(); setCap('');
+    BOOTH.planes=[]; BOOTH.planeN=0; renderPlanes();   // 비행기 초기화
     if(BOOTH.stream){ BOOTH.stream.getTracks().forEach(t=>t.stop()); BOOTH.stream=null; }
     // 인사 카메라 복구
     setTimeout(()=>{ try{ if(!window.PB_ON && window.LAST && LAST.greetOn && typeof GREET!=='undefined' && !GREET.stream && typeof greetStart==='function') greetStart(); }catch(e){} },900);
@@ -2931,7 +3019,7 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
   function drawPill(ctx,x,y,text,fs,acc){
     ctx.font='700 '+Math.round(fs)+'px sans-serif'; ctx.textBaseline='middle';
     const padX=fs*0.9, padY=fs*0.5, tw=ctx.measureText(text).width, w=tw+padX*2, h=fs+padY*2;
-    ctx.fillStyle='rgba(6,15,28,.55)'; roundRect(ctx,x,y,w,h,h/2); ctx.fill();
+    ctx.fillStyle='rgba(6,15,28,.55)'; roundRect(ctx,x,y,w,h,Math.min(h*0.34,fs*0.55)); ctx.fill();   // 반원형 대신 각진 둥근 모서리(프레임 코너와 통일)
     ctx.strokeStyle=acc; ctx.globalAlpha=.35; ctx.lineWidth=Math.max(1,fs*0.06); ctx.stroke(); ctx.globalAlpha=1;
     ctx.fillStyle=acc; ctx.textAlign='left'; ctx.fillText(text,x+padX,y+h/2);
   }
@@ -2981,6 +3069,7 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
     ctx.save(); roundRect(ctx,fx,fy,fw,fh,fr); ctx.lineWidth=Math.max(2,ch*0.004); ctx.strokeStyle=acc; ctx.globalAlpha=.6; ctx.stroke(); ctx.restore();
     drawBrackets(ctx,fx,fy,fw,fh,ch,acc);
     drawPill(ctx, fx+cw*0.012, fy+ch*0.022, (BOOTH.themeObj&&BOOTH.themeObj.gate)||'✈ ASEA AVIATION · BOARDING', ch*0.026, acc);
+    ctx.save(); roundRect(ctx,fx,fy,fw,fh,fr); ctx.clip(); drawPlanes(ctx,cw,ch); ctx.restore();   // ✈ 비행기 합성(프레임 안쪽만)
     drawBanner(ctx,cw,ch,fx,fy,fw,fh,acc);
   }
   function capture(conn){
@@ -3008,6 +3097,7 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
   // 부스 시작(라이브러리 로드 후)
   function boot(){ if(typeof mqtt!=='undefined' || window.MQTTMOCK) startHost(); else setTimeout(boot,1000); }
   setTimeout(boot,600);
+  window.addEventListener('resize',()=>{ try{ if(BOOTH.active){ renderPlanes(); fitBanner(); } }catch(e){} });
   window.PB_BOOTH=BOOTH;   // 테스트/디버그용
 })();
 </script>
