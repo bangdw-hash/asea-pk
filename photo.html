@@ -113,6 +113,22 @@
         <button class="seg" data-s="10">10초</button>
       </div>
     </div>
+    <div class="card">
+      <label>✈ 날아가는 비행기 잡기</label>
+      <button class="toggle" id="plane" data-on="0">✈ 비행기: 끔 <span>(화면에 리얼한 비행기가 랜덤 등장)</span></button>
+      <div id="planeCnt" style="display:none;margin-top:10px">
+        <div class="hint" style="margin-bottom:6px">몇 대? · 누를 때마다 기종·크기·위치가 랜덤으로 바뀌어요 (1~6)</div>
+        <div class="segs" id="planeN">
+          <button class="seg on" data-n="1">1</button>
+          <button class="seg" data-n="2">2</button>
+          <button class="seg" data-n="3">3</button>
+          <button class="seg" data-n="4">4</button>
+          <button class="seg" data-n="5">5</button>
+          <button class="seg" data-n="6">6</button>
+        </div>
+        <button class="toggle" id="planeShuffle" style="margin-top:8px">🎲 위치·기종 다시 섞기</button>
+      </div>
+    </div>
     <button class="shoot" id="shoot">📸 촬영하기</button>
     <button class="quit" id="quit">✕ 촬영 그만두고 메인으로</button>
     <div class="big" id="ctrlHint">문구를 적고 촬영하기를 누르면 카운트 후 찍혀요.</div>
@@ -178,7 +194,7 @@ function setStatus(txt,cls){$('st').textContent=txt;$('dot').className='dot'+(cl
 function connect(code){
   CODE=code; setStatus('연결 중…');
   conn=PBNET.join(code);
-  conn.on('open',()=>{ setStatus('전광판 연결됨 · 촬영 준비 완료',' on'); flash('연결되었어요!'); sendCap(); });
+  conn.on('open',()=>{ setStatus('전광판 연결됨 · 촬영 준비 완료',' on'); flash('연결되었어요!'); sendCap(); if(PLANE_ON) sendPlane(); });
   conn.on('close',()=>{ setStatus('연결 끊김 · 재연결 시도 중…',' off'); });
   conn.on('error',e=>{ setStatus('전광판을 찾지 못했습니다 · 코드 확인',' off'); showCodeInput(); });
   conn.on('data',onData);
@@ -220,11 +236,27 @@ function sendCap(){ if(conn&&conn.open) conn.send({t:'cap',text:$('cap').value})
 $('cap').addEventListener('input',()=>{ clearTimeout(capT); capT=setTimeout(sendCap,180); });
 
 let SEC=3;
-document.querySelectorAll('.seg').forEach(b=>b.addEventListener('click',()=>{
-  document.querySelectorAll('.seg').forEach(x=>x.classList.remove('on'));
+document.querySelectorAll('#secs .seg').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('#secs .seg').forEach(x=>x.classList.remove('on'));
   b.classList.add('on'); SEC=Number(b.dataset.s)||3;
   if(conn&&conn.open) conn.send({t:'sec',sec:SEC});   // 전광판에도 미리 알림(선택)
 }));
+
+/* ✈ 비행기 잡기: 켬/끔 + 대수(1~6). 보낼 때마다 전광판이 기종·크기·위치를 랜덤 재배치 */
+let PLANE_ON=false, PLANE_N=1;
+function sendPlane(){ if(conn&&conn.open) conn.send({t:'plane', n: PLANE_ON?PLANE_N:0}); }
+$('plane').addEventListener('click',()=>{
+  PLANE_ON=$('plane').dataset.on!=='1'; $('plane').dataset.on=PLANE_ON?'1':'0';
+  $('plane').classList.toggle('on',PLANE_ON);
+  $('plane').innerHTML=(PLANE_ON?'✈ 비행기: 켬':'✈ 비행기: 끔')+' <span>(화면에 리얼한 비행기가 랜덤 등장)</span>';
+  $('planeCnt').style.display=PLANE_ON?'':'none';
+  sendPlane();
+});
+document.querySelectorAll('#planeN .seg').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('#planeN .seg').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on'); PLANE_N=Number(b.dataset.n)||1; sendPlane();
+}));
+$('planeShuffle').addEventListener('click',()=>{ if(PLANE_ON) sendPlane(); });
 
 document.querySelectorAll('#langs .seg').forEach(b=>b.addEventListener('click',()=>{
   document.querySelectorAll('#langs .seg').forEach(x=>x.classList.remove('on'));
