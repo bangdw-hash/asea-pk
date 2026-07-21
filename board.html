@@ -2684,7 +2684,8 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
   const stage=$('pb-stage'),video=$('pb-video'),btextEl=$('pb-btext'),bdateEl=$('pb-bdate'),
         countEl=$('pb-count'),flashEl=$('pb-flash'),msgEl=$('pb-msg'),card=$('pb-card');
   const DEFAULT_TEXT='아세아항공직업전문학교 방문을 환영합니다';
-  const BOOTH={host:null,conn:null,code:null,stream:null,active:false,exitT:null,shooting:false,sec:3,lang:'ko',bg:false,bgimg:'',dateT:null,capText:'',capDate:''};
+  const BOOTH={host:null,conn:null,code:null,stream:null,active:false,exitT:null,idleT:null,shooting:false,sec:3,lang:'ko',bg:false,bgimg:'',dateT:null,capText:'',capDate:''};
+  const PB_IDLE_MS=20000;   // 입력 없이 20초 → 자동으로 메인 화면 복귀(중간에 멈춰도, 촬영 완료 후에도)
   window.PB_ON=false;
 
   /* ── 배경 합성(누끼): MediaPipe Selfie Segmentation — 사람만 분리해 배경 위에 합성 ──
@@ -2858,6 +2859,7 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
   }
   function onData(conn,m){
     if(!m||!m.t)return;
+    touchIdle();   // 어떤 조작이든 들어오면 무입력 복귀 타이머 리셋
     if(m.t==='cap') setCap(m.text);
     else if(m.t==='theme') applyTheme(m.id);
     else if(m.t==='lang') applyLang(m.v);
@@ -2869,17 +2871,27 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
   }
 
   function enterBooth(){
-    if(BOOTH.active){ clearTimeout(BOOTH.exitT); return; }
+    if(BOOTH.active){ clearTimeout(BOOTH.exitT); touchIdle(); return; }
     BOOTH.active=true; window.PB_ON=true;
     try{ if(typeof greetStop==='function') greetStop(); }catch(e){}
     applyTheme(BOOTH.theme||'navy'); applyLang(BOOTH.lang||'ko');
     stage.classList.add('on'); card.classList.add('hide');
     msg('휴대폰에서 문구를 적고 촬영하세요 📸'); startDate();
-    startCam();
+    startCam(); touchIdle();
   }
   function scheduleExit(){ clearTimeout(BOOTH.exitT); BOOTH.exitT=setTimeout(exitBooth,1800); }
+  // 무입력 자동 복귀: 활동이 있을 때마다 타이머를 되감고, 촬영(카운트다운) 중이면 끝날 때까지 미룬다.
+  function touchIdle(ms){
+    clearTimeout(BOOTH.idleT);
+    if(!BOOTH.active) return;
+    BOOTH.idleT=setTimeout(()=>{
+      if(BOOTH.shooting){ touchIdle(5000); return; }   // 카운트다운 진행 중이면 중단하지 않음
+      exitBooth();
+    }, ms||PB_IDLE_MS);
+  }
   function exitBooth(){
     BOOTH.active=false; window.PB_ON=false; BOOTH.shooting=false;
+    clearTimeout(BOOTH.idleT); BOOTH.idleT=null;
     setBg(false);
     stage.classList.remove('on'); card.classList.remove('hide'); stopDate(); setCap('');
     if(BOOTH.stream){ BOOTH.stream.getTracks().forEach(t=>t.stop()); BOOTH.stream=null; }
@@ -2981,6 +2993,7 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
     if(url) sendImg(conn,url);
     BOOTH.shooting=false;
     msg('📥 휴대폰에서 사진을 저장하세요!');
+    touchIdle();   // 촬영 완료 → 이후 무입력 20초면 메인 복귀
     setTimeout(()=>{ if(BOOTH.active) msg('휴대폰에서 문구를 적고 촬영하세요 📸'); },6000);
   }
   function sendImg(conn,dataUrl){
