@@ -2727,26 +2727,28 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
   function planeSVG(c){
     const body=c.body, dark=pbShade(body,.72), win=c.win||'#12314f', st=c.stripe, tail=c.tail;
     let windows=''; for(let x=104;x<=214;x+=8){ windows+='<rect x="'+x+'" y="54.5" width="3.4" height="4.2" rx="1.4" fill="'+win+'"/>'; }
-    const svg='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 130">'
+    // 날개는 뒤로 후퇴하며 수평~살짝 위로(아래로 처지지 않게) — 어색하지 않은 비행 자세
+    const svg='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 120">'
       +'<defs>'
       +'<linearGradient id="fb" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset=".46" stop-color="'+body+'"/><stop offset=".72" stop-color="'+body+'"/><stop offset="1" stop-color="'+dark+'"/></linearGradient>'
-      +'<linearGradient id="wg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="'+pbShade(body,.92)+'"/><stop offset="1" stop-color="'+dark+'"/></linearGradient>'
-      +'<linearGradient id="eg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e9eef2"/><stop offset="1" stop-color="#5f6b76"/></linearGradient>'
-      +'<radialGradient id="sh" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="rgba(20,40,60,.28)"/><stop offset="1" stop-color="rgba(20,40,60,0)"/></radialGradient>'
+      +'<linearGradient id="wg" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="'+pbShade(body,.82)+'"/><stop offset="1" stop-color="'+pbShade(body,.96)+'"/></linearGradient>'
+      +'<linearGradient id="eg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#eef2f5"/><stop offset="1" stop-color="#5f6b76"/></linearGradient>'
+      +'<radialGradient id="sh" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="rgba(10,25,45,.25)"/><stop offset="1" stop-color="rgba(10,25,45,0)"/></radialGradient>'
       +'</defs>'
-      +'<ellipse cx="150" cy="118" rx="96" ry="9" fill="url(#sh)"/>'
-      +'<path d="M156 68 L96 116 L124 116 L188 70 Z" fill="url(#wg)" opacity=".72"/>'
-      +'<path d="M70 60 L40 16 L33 18 L54 62 Z" fill="'+tail+'"/>'
-      +'<path d="M70 60 L52 30 L47 32 L58 62 Z" fill="'+pbShade(tail,.8)+'"/>'
-      +'<path d="M66 66 L26 80 L40 70 L70 62 Z" fill="url(#wg)"/>'
+      +'<ellipse cx="150" cy="112" rx="92" ry="7" fill="url(#sh)"/>'
+      +'<path d="M182 60 L108 46 L120 55 L180 63 Z" fill="url(#wg)" opacity=".62"/>'
+      +'<path d="M72 58 L44 14 L37 16 L57 60 Z" fill="'+tail+'"/>'
+      +'<path d="M72 58 L55 28 L50 30 L60 60 Z" fill="'+pbShade(tail,.8)+'"/>'
+      +'<path d="M74 58 L34 50 L44 55 L74 61 Z" fill="url(#wg)"/>'
       +'<path d="M64 58 Q62 52 74 50 L232 49 Q249 50 249 61 Q249 71 232 72 L150 72 Q104 72 82 68 Q68 65 64 62 Z" fill="url(#fb)"/>'
       +'<path d="M78 63.4 L246 62.4 L246 66 Q246 67 244 67 L150 68 Q108 68 84 65.4 Z" fill="'+st+'"/>'
       +'<path d="M232 52 Q244 52.5 245.5 57 L234 57.5 Z" fill="'+win+'"/>'
       +windows
-      +'<path d="M176 66 L112 122 L146 122 L206 68 Z" fill="url(#wg)"/>'
-      +'<ellipse cx="150" cy="98" rx="15" ry="8.2" fill="url(#eg)"/>'
-      +'<ellipse cx="150" cy="98" rx="15" ry="8.2" fill="none" stroke="'+dark+'" stroke-width="1"/>'
-      +'<ellipse cx="164" cy="98" rx="3.2" ry="7" fill="#2b333b"/>'
+      +'<ellipse cx="150" cy="74.5" rx="13" ry="6.6" fill="url(#eg)"/>'
+      +'<ellipse cx="150" cy="74.5" rx="13" ry="6.6" fill="none" stroke="'+dark+'" stroke-width="1"/>'
+      +'<ellipse cx="162" cy="74.5" rx="2.6" ry="5.4" fill="#2b333b"/>'
+      +'<path d="M196 60 L112 42 L126 54 L196 64 Z" fill="url(#wg)"/>'
+      +'<path d="M196 60 L112 42 L118 48 L196 62 Z" fill="'+pbShade(body,.7)+'" opacity=".5"/>'
       +'</svg>';
     return 'data:image/svg+xml;utf8,'+encodeURIComponent(svg);
   }
@@ -2771,7 +2773,9 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
       let x,tries=0; do{ x=0.13+Math.random()*0.74; tries++; }while(tries<10 && usedX.some(u=>Math.abs(u-x)<0.15));
       usedX.push(x);
       const y=0.10+Math.random()*0.40;                        // 배너 위쪽(상단 밴드)
-      const rot=-16+Math.random()*26, flip=Math.random()<0.5?-1:1;
+      const flip=Math.random()<0.5?-1:1;
+      const climb=2+Math.random()*11;                          // 2~13° 상승(수평~위로)
+      const rot=-flip*climb;                                   // 좌·우향 모두 기수가 위/수평 — 어색한 하강 없음
       arr.push({ti,x,y,scale,rot,flip});
     }
     BOOTH.planes=arr; renderPlanes();
