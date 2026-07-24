@@ -2588,6 +2588,11 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
 #pb-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1);background:#0a1120}
 #pb-seg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1);z-index:2;display:none}
 #pb-stage.seg #pb-seg{display:block}   /* 배경 합성 ON일 때 합성 캔버스가 카메라를 덮음 */
+/* 🤳 셀카 모드: 폰 카메라 프레임을 16:9로 cover(찌그러짐 없이) 표시. 폰 셀카라 미러하지 않음 */
+#pb-selfiecam{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:1;display:none;background:#0a1120}
+#pb-stage.selfie #pb-selfiecam{display:block}
+#pb-stage.selfie #pb-video{visibility:hidden}
+#pb-stage.selfie #pb-seg{transform:none}   /* 셀카는 미러 해제 */
 .pb-cnr{position:absolute;width:5.5vh;height:5.5vh;border:.55vh solid var(--pb-acc);z-index:3;pointer-events:none;opacity:.92}
 .pb-cnr.tl{top:1.6vh;left:1.2vw;border-right:0;border-bottom:0;border-radius:1.2vh 0 0 0}
 .pb-cnr.tr{top:1.6vh;right:1.2vw;border-left:0;border-bottom:0;border-radius:0 1.2vh 0 0}
@@ -2642,6 +2647,7 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
 <div id="pb-stage">
   <div id="pb-frame">
     <video id="pb-video" playsinline muted></video>
+    <img id="pb-selfiecam" alt="">
     <canvas id="pb-seg"></canvas>
     <img id="pb-frameimg" alt="">
     <div class="pb-cnr tl"></div><div class="pb-cnr tr"></div><div class="pb-cnr bl"></div><div class="pb-cnr br"></div>
@@ -2701,9 +2707,23 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
         countEl=$('pb-count'),flashEl=$('pb-flash'),msgEl=$('pb-msg'),card=$('pb-card'),
         airtEl=$('pb-air-t'),bsubEnEl=$('pb-bsub-en');
   const DEFAULT_TEXT='아세아항공직업전문학교 방문을 환영합니다';
-  const BOOTH={host:null,conn:null,code:null,stream:null,active:false,exitT:null,idleT:null,shooting:false,sec:3,lang:'ko',bg:false,bgimg:'',dateT:null,capText:'',capDate:'',planes:[],planeN:0,frame:''};
+  const BOOTH={host:null,conn:null,code:null,stream:null,active:false,exitT:null,idleT:null,shooting:false,sec:3,lang:'ko',bg:false,bgimg:'',dateT:null,capText:'',capDate:'',planes:[],planeN:0,frame:'',selfie:false};
   const PB_IDLE_MS=20000;   // 입력 없이 20초 → 자동으로 메인 화면 복귀(중간에 멈춰도, 촬영 완료 후에도)
   window.PB_ON=false;
+  /* 🤳 셀카 모드: 폰(QR로 연결한 컨트롤러)의 카메라 프레임을 릴레이로 받아 화면 소스로 사용 */
+  const selfieEl=$('pb-selfiecam'), selfieImg=new Image();
+  let selfieChunks=null, selfieSeen=false;
+  function setSelfieFrame(dataUrl){
+    if(!dataUrl) return;
+    selfieImg.src=dataUrl; if(selfieEl) selfieEl.src=dataUrl;
+    if(!selfieSeen){ selfieSeen=true; if(BOOTH.selfie && BOOTH.active) msg('🤳 셀카 모드 · 폰 화면을 보며 촬영하세요'); }
+  }
+  function setSelfie(on){
+    BOOTH.selfie=!!on;
+    if(on){ selfieSeen=false; stage.classList.add('selfie'); if(BOOTH.active) msg('🤳 폰 카메라 준비 중…'); }
+    else { stage.classList.remove('selfie'); selfieSeen=false;
+      if(BOOTH.active) msg(BOOTH.frame==='mech'?'🧑‍🔧 얼굴을 맞추고 촬영하세요':'휴대폰에서 문구를 적고 촬영하세요 📸'); }
+  }
 
   /* ── 배경 합성(누끼): MediaPipe Selfie Segmentation — 사람만 분리해 배경 위에 합성 ──
      · 첫 합성 프레임이 도착해야 합성 화면으로 전환(그 전엔 실제 카메라 유지)
@@ -2979,7 +2999,9 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
   }
   async function segFrame(){
     if(!BOOTH.bg||!BOOTH.active){ segRAF=null; return; }
-    if(seg && video.readyState>=2 && !segBusy){ segBusy=true; try{ await seg.send({image:video}); }catch(e){} segBusy=false; }
+    const useSelfie = BOOTH.selfie && selfieImg.complete && selfieImg.naturalWidth>1;   // 셀카 모드면 폰 프레임을 누끼 입력으로
+    const srcEl = useSelfie ? selfieImg : video;
+    if(seg && (useSelfie || video.readyState>=2) && !segBusy){ segBusy=true; try{ await seg.send({image:srcEl}); }catch(e){} segBusy=false; }
     segRAF=requestAnimationFrame(segFrame);
   }
   function segFallback(reason){   // 합성 불가 → 실제 카메라 유지
@@ -3091,6 +3113,11 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
     else if(m.t==='shoot') doShoot(conn, Number(m.sec)||BOOTH.sec||3);
     else if(m.t==='plane') layoutPlanes(Number(m.n)||0);
     else if(m.t==='frame') setFrame(m.id||'');
+    else if(m.t==='selfie') setSelfie(!!m.on);
+    else if(m.t==='sf') setSelfieFrame(m.d);                       // 폰 카메라 프레임(통짜)
+    else if(m.t==='sfs') selfieChunks={total:m.total,parts:new Array(m.total),got:0};   // 분할 프레임 시작
+    else if(m.t==='sfc'){ if(selfieChunks&&selfieChunks.parts[m.i]===undefined){ selfieChunks.parts[m.i]=m.d;
+        if(++selfieChunks.got===selfieChunks.total){ setSelfieFrame(selfieChunks.parts.join('')); selfieChunks=null; } } }
     else if(m.t==='quit') exitBooth();
   }
 
@@ -3098,6 +3125,7 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
     if(BOOTH.active){ clearTimeout(BOOTH.exitT); touchIdle(); return; }
     BOOTH.active=true; window.PB_ON=true;
     BOOTH.frame=''; stage.classList.remove('mech');
+    BOOTH.selfie=false; stage.classList.remove('selfie'); selfieSeen=false;
     try{ if(typeof greetStop==='function') greetStop(); }catch(e){}
     applyTheme(BOOTH.theme||'navy'); applyLang(BOOTH.lang||'ko');
     stage.classList.add('on'); card.classList.add('hide');
@@ -3119,6 +3147,7 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
     clearTimeout(BOOTH.idleT); BOOTH.idleT=null;
     setBg(false);
     stage.classList.remove('on'); stage.classList.remove('mech'); BOOTH.frame='';   // 정비사 모드 초기화
+    stage.classList.remove('selfie'); BOOTH.selfie=false; selfieChunks=null; selfieSeen=false;   // 셀카 모드 초기화
     card.classList.remove('hide'); stopDate(); setCap('');
     BOOTH.planes=[]; BOOTH.planeN=0; renderPlanes();   // 비행기 초기화
     if(BOOTH.stream){ BOOTH.stream.getTracks().forEach(t=>t.stop()); BOOTH.stream=null; }
@@ -3198,15 +3227,20 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
     const acc=(BOOTH.themeObj&&BOOTH.themeObj.acc)||'#ffb400';
     // 배경 합성 ON이면 합성 캔버스(사람+테마 배경)를, 아니면 실제 카메라를 프레임에 채움
     const useSeg = BOOTH.bg && segGotFrame && segCanvas.width>1;
-    const src = useSeg ? segCanvas : video;
+    const selfieOn = BOOTH.selfie && selfieImg.complete && selfieImg.naturalWidth>1;
+    const src = useSeg ? segCanvas : (selfieOn ? selfieImg : video);
+    const mirror = !BOOTH.selfie;   // 폰 셀카 프레임은 미러하지 않음(글자 뒤집힘 방지), 보드 웹캠은 셀카처럼 미러
     ctx.fillStyle='#071426'; ctx.fillRect(0,0,cw,ch);
     const fx=cw*0.03, fy=ch*0.045, fw=cw-2*fx, fh=ch-2*fy, fr=Math.round(ch*0.04);
-    const vw=(useSeg?segCanvas.width:(video.videoWidth||1280)), vh=(useSeg?segCanvas.height:(video.videoHeight||720)), vAR=vw/vh, fAR=fw/fh;
-    let dw,dh; if(vAR>fAR){ dh=fh; dw=fh*vAR; } else { dw=fw; dh=fw/vAR; }
+    const sw=useSeg?segCanvas.width:(selfieOn?selfieImg.naturalWidth:(video.videoWidth||1280));
+    const sh=useSeg?segCanvas.height:(selfieOn?selfieImg.naturalHeight:(video.videoHeight||720));
+    const vAR=sw/sh, fAR=fw/fh;
+    let dw,dh; if(vAR>fAR){ dh=fh; dw=fh*vAR; } else { dw=fw; dh=fw/vAR; }   // 16:9 프레임에 cover(비율 유지, 찌그러짐 없음)
     const dx=fx+(fw-dw)/2, dy=fy+(fh-dh)/2;
     ctx.save(); roundRect(ctx,fx,fy,fw,fh,fr); ctx.clip();
-    ctx.translate(cw,0); ctx.scale(-1,1);
-    try{ ctx.drawImage(src, cw-dx-dw, dy, dw, dh); }catch(e){ ctx.fillStyle='#0a1120'; ctx.fillRect(0,0,cw,ch); }
+    if(mirror){ ctx.translate(cw,0); ctx.scale(-1,1);
+      try{ ctx.drawImage(src, cw-dx-dw, dy, dw, dh); }catch(e){ ctx.fillStyle='#0a1120'; ctx.fillRect(0,0,cw,ch); } }
+    else { try{ ctx.drawImage(src, dx, dy, dw, dh); }catch(e){ ctx.fillStyle='#0a1120'; ctx.fillRect(0,0,cw,ch); } }
     ctx.restore();
     if(BOOTH.frame==='mech'){   // 정비사 장면(실제 사진 또는 벡터)이 카메라를 덮고 얼굴 구멍만 카메라
       const mimg = mechPhotoCanvas || ((mechImgEl.complete&&mechImgEl.naturalWidth)?mechImgEl:null);
