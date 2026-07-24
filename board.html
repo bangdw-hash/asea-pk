@@ -2588,6 +2588,11 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
 #pb-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1);background:#0a1120}
 #pb-seg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1);z-index:2;display:none}
 #pb-stage.seg #pb-seg{display:block}   /* 배경 합성 ON일 때 합성 캔버스가 카메라를 덮음 */
+/* 🤳 셀카 모드: 폰 카메라 프레임을 16:9로 cover(찌그러짐 없이) 표시. 폰 셀카라 미러하지 않음 */
+#pb-selfiecam{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:1;display:none;background:#0a1120}
+#pb-stage.selfie #pb-selfiecam{display:block}
+#pb-stage.selfie #pb-video{visibility:hidden}
+#pb-stage.selfie #pb-seg{transform:none}   /* 셀카는 미러 해제 */
 .pb-cnr{position:absolute;width:5.5vh;height:5.5vh;border:.55vh solid var(--pb-acc);z-index:3;pointer-events:none;opacity:.92}
 .pb-cnr.tl{top:1.6vh;left:1.2vw;border-right:0;border-bottom:0;border-radius:1.2vh 0 0 0}
 .pb-cnr.tr{top:1.6vh;right:1.2vw;border-left:0;border-bottom:0;border-radius:0 1.2vh 0 0}
@@ -2607,6 +2612,8 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
 #pb-facehole::after{content:'여기에 얼굴을 맞춰 주세요';position:absolute;left:50%;top:-3.6vh;transform:translateX(-50%);
   white-space:nowrap;color:#fff;font-size:1.7vh;font-weight:700;letter-spacing:.02em;text-shadow:0 1px 5px rgba(0,0,0,.7)}
 #pb-stage.mech #pb-facehole{display:block}
+#pb-stage.mech.mechphoto #pb-facehole{display:none}   /* 실제 사진 사용 시엔 초록 자리가 곧 안내라 원 숨김 */
+#pb-stage.mech #pb-bsub-en{color:#ffe0b8;font-weight:700;line-height:1.5;margin-top:.9vh}
 #pb-count{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:6;
   font-family:var(--font-display);font-size:44vh;font-weight:900;color:#fff;text-shadow:0 1vh 6vh rgba(0,0,0,.6);opacity:0}
 #pb-count.tick{animation:pbcount 1s ease}
@@ -2640,6 +2647,7 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
 <div id="pb-stage">
   <div id="pb-frame">
     <video id="pb-video" playsinline muted></video>
+    <img id="pb-selfiecam" alt="">
     <canvas id="pb-seg"></canvas>
     <img id="pb-frameimg" alt="">
     <div class="pb-cnr tl"></div><div class="pb-cnr tr"></div><div class="pb-cnr bl"></div><div class="pb-cnr br"></div>
@@ -2699,9 +2707,23 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
         countEl=$('pb-count'),flashEl=$('pb-flash'),msgEl=$('pb-msg'),card=$('pb-card'),
         airtEl=$('pb-air-t'),bsubEnEl=$('pb-bsub-en');
   const DEFAULT_TEXT='아세아항공직업전문학교 방문을 환영합니다';
-  const BOOTH={host:null,conn:null,code:null,stream:null,active:false,exitT:null,idleT:null,shooting:false,sec:3,lang:'ko',bg:false,bgimg:'',dateT:null,capText:'',capDate:'',planes:[],planeN:0,frame:''};
+  const BOOTH={host:null,conn:null,code:null,stream:null,active:false,exitT:null,idleT:null,shooting:false,sec:3,lang:'ko',bg:false,bgimg:'',dateT:null,capText:'',capDate:'',planes:[],planeN:0,frame:'',selfie:false};
   const PB_IDLE_MS=20000;   // 입력 없이 20초 → 자동으로 메인 화면 복귀(중간에 멈춰도, 촬영 완료 후에도)
   window.PB_ON=false;
+  /* 🤳 셀카 모드: 폰(QR로 연결한 컨트롤러)의 카메라 프레임을 릴레이로 받아 화면 소스로 사용 */
+  const selfieEl=$('pb-selfiecam'), selfieImg=new Image();
+  let selfieChunks=null, selfieSeen=false;
+  function setSelfieFrame(dataUrl){
+    if(!dataUrl) return;
+    selfieImg.src=dataUrl; if(selfieEl) selfieEl.src=dataUrl;
+    if(!selfieSeen){ selfieSeen=true; if(BOOTH.selfie && BOOTH.active) msg('🤳 셀카 모드 · 폰 화면을 보며 촬영하세요'); }
+  }
+  function setSelfie(on){
+    BOOTH.selfie=!!on;
+    if(on){ selfieSeen=false; stage.classList.add('selfie'); if(BOOTH.active) msg('🤳 폰 카메라 준비 중…'); }
+    else { stage.classList.remove('selfie'); selfieSeen=false;
+      if(BOOTH.active) msg(BOOTH.frame==='mech'?'🧑‍🔧 얼굴을 맞추고 촬영하세요':'휴대폰에서 문구를 적고 촬영하세요 📸'); }
+  }
 
   /* ── 배경 합성(누끼): MediaPipe Selfie Segmentation — 사람만 분리해 배경 위에 합성 ──
      · 첫 합성 프레임이 도착해야 합성 화면으로 전환(그 전엔 실제 카메라 유지)
@@ -2819,7 +2841,8 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
 
   /* ── 🧑‍🔧 항공정비사 되어보기(얼굴 넣기) : 정비사 장면이 카메라를 덮고, 얼굴 구멍으로만 카메라가 비쳐
      방문객이 항공정비사가 된 기념사진을 촬영. 실제 투명 구멍이라 크로마키 없이 깔끔하게 합성됨. ── */
-  const MECH_MENT={ eyebrow:'✈ 미래의 항공정비사', main:'아세아는 여러분의 꿈을 응원합니다', sub2:'항공정비사가 되는 그 날까지, 여러분을 응원합니다' };
+  const MECH_MENT={ eyebrow:'✈ 미래의 항공정비사', main:'아세아는 여러분의 꿈을 응원합니다', sub2a:'항공정비사가 되는 그 날까지,', sub2b:'여러분의 도전을 응원합니다' };
+  const PB_MECH_IMG='booth-mech.png';   // 저장소에 이 파일을 올리면 실제 정비사 사진의 초록(크로마키)만 뚫어 사용(없으면 벡터 장면)
   function mechSVG(){
     const navy='#1e2f4d', sky='#8fc0e8', steel='#c7d0d8', glove='#8b95a0';
     let win='';for(let x=120;x<820;x+=40)win+='<circle cx="'+x+'" cy="366" r="6"/>';
@@ -2871,24 +2894,56 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
   }
   let mechURI=null; const mechImgEl=new Image();
   function mechAsset(){ if(mechURI==null){ mechURI=mechSVG(); mechImgEl.src=mechURI; } return mechURI; }
-  mechAsset();   // 미리 로드
+  mechAsset();   // 벡터 폴백 미리 로드
+
+  /* 실제 정비사 사진의 초록(크로마키)만 투명하게 뚫기 → 그 구멍으로 카메라가 비침. 같은 오리진 파일이라 캔버스 오염 없음 */
+  let mechPhotoCanvas=null, mechPhotoTried=false;
+  function chromaKeyGreen(img){
+    const w=1280,h=720, c=document.createElement('canvas'); c.width=w; c.height=h;
+    const x=c.getContext('2d',{willReadFrequently:true});
+    const ar=(img.naturalWidth||img.width)/(img.naturalHeight||img.height), fr=w/h;   // cover 맞춤
+    let dw,dh; if(ar>fr){ dh=h; dw=h*ar; } else { dw=w; dh=w/ar; }
+    x.drawImage(img,(w-dw)/2,(h-dh)/2,dw,dh);
+    const id=x.getImageData(0,0,w,h), d=id.data;
+    for(let i=0;i<d.length;i+=4){
+      const r=d[i],g=d[i+1],b=d[i+2], dd=g-Math.max(r,b);   // 초록 우세도
+      if(dd>=60){ d[i+3]=0; }                                // 확실한 초록 → 투명
+      else if(dd>26){ d[i+3]=Math.round(255*(60-dd)/34);     // 가장자리 → 부드러운 페더
+        d[i]=Math.min(r, b+10); d[i+1]=Math.min(g, Math.max(r,b)); }   // 초록 스필 억제
+    }
+    x.putImageData(id,0,0); return c;
+  }
+  function loadMechPhoto(after){
+    mechPhotoTried=true; const im=new Image(); im.crossOrigin='anonymous';
+    im.onload=()=>{ try{ mechPhotoCanvas=chromaKeyGreen(im); }catch(e){ mechPhotoCanvas=null; } after&&after(); };
+    im.onerror=()=>{ mechPhotoCanvas=null; after&&after(); };
+    im.src=PB_MECH_IMG+'?v=1';
+  }
+  function mechOverlaySrc(){ return mechPhotoCanvas ? mechPhotoCanvas.toDataURL('image/png') : mechAsset(); }
+  function applyMechOverlay(){
+    const fi=$('pb-frameimg'); if(fi) fi.src=mechOverlaySrc();
+    // 실제 사진을 쓰면 얼굴 구멍 위치를 알 수 없으므로 가이드 원은 벡터 폴백에서만 표시
+    stage.classList.toggle('mechphoto', !!mechPhotoCanvas);
+  }
+  function setMechBanner(){
+    if(airtEl) airtEl.textContent=MECH_MENT.eyebrow;
+    btextEl.textContent=MECH_MENT.main; fitBanner();
+    if(bsubEnEl){ bsubEnEl.innerHTML=esc(MECH_MENT.sub2a)+'<br>'+esc(MECH_MENT.sub2b); bsubEnEl.style.display=''; }
+  }
+  function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
   function setFrame(id){
     const on = id==='mech';
     BOOTH.frame = on ? 'mech' : '';
-    const fi=$('pb-frameimg');
     if(on){
-      if(fi){ fi.src=mechAsset(); }
       stage.classList.add('mech');
       if(BOOTH.bg) setBg(false);                 // 배경 합성과 동시 사용 불가
       BOOTH.planes=[]; BOOTH.planeN=0; renderPlanes();
-      // 배너를 응원 멘트로 연출(학교명·날짜는 그대로 유지)
-      if(airtEl) airtEl.textContent=MECH_MENT.eyebrow;
-      btextEl.textContent=MECH_MENT.main; fitBanner();
-      if(bsubEnEl){ bsubEnEl.textContent=MECH_MENT.sub2; bsubEnEl.style.display=''; }
-      if(BOOTH.active) msg('🧑‍🔧 얼굴을 원 안에 맞추고 촬영하세요');
+      if(!mechPhotoTried){ loadMechPhoto(()=>{ if(BOOTH.frame==='mech') applyMechOverlay(); }); }
+      applyMechOverlay();
+      setMechBanner();                           // 응원 멘트 연출(학교명·날짜는 그대로 유지)
+      if(BOOTH.active) msg(mechPhotoCanvas?'🧑‍🔧 얼굴을 초록 자리에 맞추고 촬영하세요':'🧑‍🔧 얼굴을 원 안에 맞추고 촬영하세요');
     }else{
-      stage.classList.remove('mech');
-      if(airtEl){ const L=PB_LANG[BOOTH.lang]||PB_LANG.ko; airtEl.textContent=L.air; }
+      stage.classList.remove('mech'); stage.classList.remove('mechphoto');
       applyLang(BOOTH.lang||'ko');                // 배너 원상복구
       setCap(BOOTH.capText);
       if(BOOTH.active) msg('휴대폰에서 문구를 적고 촬영하세요 📸');
@@ -2944,7 +2999,9 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
   }
   async function segFrame(){
     if(!BOOTH.bg||!BOOTH.active){ segRAF=null; return; }
-    if(seg && video.readyState>=2 && !segBusy){ segBusy=true; try{ await seg.send({image:video}); }catch(e){} segBusy=false; }
+    const useSelfie = BOOTH.selfie && selfieImg.complete && selfieImg.naturalWidth>1;   // 셀카 모드면 폰 프레임을 누끼 입력으로
+    const srcEl = useSelfie ? selfieImg : video;
+    if(seg && (useSelfie || video.readyState>=2) && !segBusy){ segBusy=true; try{ await seg.send({image:srcEl}); }catch(e){} segBusy=false; }
     segRAF=requestAnimationFrame(segFrame);
   }
   function segFallback(reason){   // 합성 불가 → 실제 카메라 유지
@@ -3002,7 +3059,7 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
     if(BOOTH.frame==='mech'){   // 정비사 모드: 응원 멘트 유지, 학교명만 언어 반영
       if(air) air.textContent=MECH_MENT.eyebrow;
       if(school) school.textContent=L.school;
-      if(en){ en.textContent=MECH_MENT.sub2; en.style.display=''; }
+      if(en){ en.innerHTML=esc(MECH_MENT.sub2a)+'<br>'+esc(MECH_MENT.sub2b); en.style.display=''; }
       return;
     }
     if(air) air.textContent=L.air;
@@ -3056,6 +3113,11 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
     else if(m.t==='shoot') doShoot(conn, Number(m.sec)||BOOTH.sec||3);
     else if(m.t==='plane') layoutPlanes(Number(m.n)||0);
     else if(m.t==='frame') setFrame(m.id||'');
+    else if(m.t==='selfie') setSelfie(!!m.on);
+    else if(m.t==='sf') setSelfieFrame(m.d);                       // 폰 카메라 프레임(통짜)
+    else if(m.t==='sfs') selfieChunks={total:m.total,parts:new Array(m.total),got:0};   // 분할 프레임 시작
+    else if(m.t==='sfc'){ if(selfieChunks&&selfieChunks.parts[m.i]===undefined){ selfieChunks.parts[m.i]=m.d;
+        if(++selfieChunks.got===selfieChunks.total){ setSelfieFrame(selfieChunks.parts.join('')); selfieChunks=null; } } }
     else if(m.t==='quit') exitBooth();
   }
 
@@ -3063,6 +3125,7 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
     if(BOOTH.active){ clearTimeout(BOOTH.exitT); touchIdle(); return; }
     BOOTH.active=true; window.PB_ON=true;
     BOOTH.frame=''; stage.classList.remove('mech');
+    BOOTH.selfie=false; stage.classList.remove('selfie'); selfieSeen=false;
     try{ if(typeof greetStop==='function') greetStop(); }catch(e){}
     applyTheme(BOOTH.theme||'navy'); applyLang(BOOTH.lang||'ko');
     stage.classList.add('on'); card.classList.add('hide');
@@ -3084,6 +3147,7 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
     clearTimeout(BOOTH.idleT); BOOTH.idleT=null;
     setBg(false);
     stage.classList.remove('on'); stage.classList.remove('mech'); BOOTH.frame='';   // 정비사 모드 초기화
+    stage.classList.remove('selfie'); BOOTH.selfie=false; selfieChunks=null; selfieSeen=false;   // 셀카 모드 초기화
     card.classList.remove('hide'); stopDate(); setCap('');
     BOOTH.planes=[]; BOOTH.planeN=0; renderPlanes();   // 비행기 초기화
     if(BOOTH.stream){ BOOTH.stream.getTracks().forEach(t=>t.stop()); BOOTH.stream=null; }
@@ -3132,18 +3196,18 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
     const mech=BOOTH.frame==='mech';
     const text=mech ? MECH_MENT.main : (btextEl.textContent||DEFAULT_TEXT);
     const sub=L.school+' · '+(BOOTH.capDate||nowStr());
-    const enLine=mech ? MECH_MENT.sub2 : L.en;
+    const enLines=mech ? [MECH_MENT.sub2a, MECH_MENT.sub2b] : (L.en?[L.en]:[]);   // 정비사 모드는 응원 멘트를 두 줄로 예쁘게
     const airLine=mech ? MECH_MENT.eyebrow : L.air;
     let mfs=ch*0.062, guard=0; const maxTextW=fw*0.82;
     ctx.font='800 '+mfs+'px sans-serif';
     while(ctx.measureText(text).width>maxTextW && mfs>ch*0.03 && guard++<90){ mfs-=1; ctx.font='800 '+mfs+'px sans-serif'; }
     const mtw=ctx.measureText(text).width;
-    const airfs=ch*0.024, sfs=ch*0.03, enfs=ch*0.022, padX=cw*0.035, padY=ch*0.032, gap=ch*0.014;
-    // 영문 서브라인 폭도 배너 폭에 반영
+    const airfs=ch*0.024, sfs=ch*0.03, enfs=mech?ch*0.026:ch*0.022, padX=cw*0.035, padY=ch*0.032, gap=ch*0.014, enGap=ch*0.008;
     ctx.font='700 '+sfs+'px sans-serif'; const subw=ctx.measureText(sub).width;
-    ctx.font='700 '+enfs+'px sans-serif'; const enw=enLine?ctx.measureText(enLine).width:0;
+    ctx.font='700 '+enfs+'px sans-serif'; let enw=0; enLines.forEach(t=>enw=Math.max(enw,ctx.measureText(t).width));
     const bw=Math.min(fw*0.94, Math.max(fw*0.36, mtw+padX*2, subw+padX*2, enw+padX*2));
-    const bh=airfs+gap+mfs+gap+sfs+(enLine?gap*0.7+enfs:0)+padY*2;
+    const enBlock=enLines.length ? gap*0.7+enLines.length*enfs+(enLines.length-1)*enGap : 0;
+    const bh=airfs+gap+mfs+gap+sfs+enBlock+padY*2;
     const bx=cw/2-bw/2, by=fy+fh-bh-ch*0.05;
     const bgrd=ctx.createLinearGradient(0,by,0,by+bh); bgrd.addColorStop(0,'rgba(12,31,56,.92)'); bgrd.addColorStop(1,'rgba(8,20,38,.95)');
     ctx.fillStyle=bgrd; roundRect(ctx,bx,by,bw,bh,ch*0.03); ctx.fill();
@@ -3155,26 +3219,33 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
     ctx.font='800 '+Math.round(mfs)+'px sans-serif'; ctx.fillStyle='#fff'; ctx.fillText(text, cw/2, y);
     y+=mfs/2+gap+sfs/2;
     ctx.font='700 '+Math.round(sfs)+'px sans-serif'; ctx.fillStyle='#cfe0f2'; ctx.fillText(sub, cw/2, y);
-    if(enLine){ y+=sfs/2+gap*0.7+enfs/2;
-      ctx.font='700 '+Math.round(enfs)+'px sans-serif'; ctx.fillStyle='#9fb3c9'; ctx.fillText(enLine, cw/2, y); }
+    if(enLines.length){ y+=sfs/2+gap*0.7;
+      ctx.font='700 '+Math.round(enfs)+'px sans-serif'; ctx.fillStyle=mech?'#ffe0b8':'#9fb3c9';
+      enLines.forEach((t,i)=>{ ctx.fillText(t, cw/2, y+enfs/2+i*(enfs+enGap)); }); }
   }
   function drawComposite(ctx,cw,ch){
     const acc=(BOOTH.themeObj&&BOOTH.themeObj.acc)||'#ffb400';
     // 배경 합성 ON이면 합성 캔버스(사람+테마 배경)를, 아니면 실제 카메라를 프레임에 채움
     const useSeg = BOOTH.bg && segGotFrame && segCanvas.width>1;
-    const src = useSeg ? segCanvas : video;
+    const selfieOn = BOOTH.selfie && selfieImg.complete && selfieImg.naturalWidth>1;
+    const src = useSeg ? segCanvas : (selfieOn ? selfieImg : video);
+    const mirror = !BOOTH.selfie;   // 폰 셀카 프레임은 미러하지 않음(글자 뒤집힘 방지), 보드 웹캠은 셀카처럼 미러
     ctx.fillStyle='#071426'; ctx.fillRect(0,0,cw,ch);
     const fx=cw*0.03, fy=ch*0.045, fw=cw-2*fx, fh=ch-2*fy, fr=Math.round(ch*0.04);
-    const vw=(useSeg?segCanvas.width:(video.videoWidth||1280)), vh=(useSeg?segCanvas.height:(video.videoHeight||720)), vAR=vw/vh, fAR=fw/fh;
-    let dw,dh; if(vAR>fAR){ dh=fh; dw=fh*vAR; } else { dw=fw; dh=fw/vAR; }
+    const sw=useSeg?segCanvas.width:(selfieOn?selfieImg.naturalWidth:(video.videoWidth||1280));
+    const sh=useSeg?segCanvas.height:(selfieOn?selfieImg.naturalHeight:(video.videoHeight||720));
+    const vAR=sw/sh, fAR=fw/fh;
+    let dw,dh; if(vAR>fAR){ dh=fh; dw=fh*vAR; } else { dw=fw; dh=fw/vAR; }   // 16:9 프레임에 cover(비율 유지, 찌그러짐 없음)
     const dx=fx+(fw-dw)/2, dy=fy+(fh-dh)/2;
     ctx.save(); roundRect(ctx,fx,fy,fw,fh,fr); ctx.clip();
-    ctx.translate(cw,0); ctx.scale(-1,1);
-    try{ ctx.drawImage(src, cw-dx-dw, dy, dw, dh); }catch(e){ ctx.fillStyle='#0a1120'; ctx.fillRect(0,0,cw,ch); }
+    if(mirror){ ctx.translate(cw,0); ctx.scale(-1,1);
+      try{ ctx.drawImage(src, cw-dx-dw, dy, dw, dh); }catch(e){ ctx.fillStyle='#0a1120'; ctx.fillRect(0,0,cw,ch); } }
+    else { try{ ctx.drawImage(src, dx, dy, dw, dh); }catch(e){ ctx.fillStyle='#0a1120'; ctx.fillRect(0,0,cw,ch); } }
     ctx.restore();
-    if(BOOTH.frame==='mech' && mechImgEl.complete && mechImgEl.naturalWidth){   // 정비사 장면이 카메라를 덮고 얼굴 구멍만 카메라
-      ctx.save(); roundRect(ctx,fx,fy,fw,fh,fr); ctx.clip(); ctx.imageSmoothingQuality='high';
-      try{ ctx.drawImage(mechImgEl,fx,fy,fw,fh); }catch(e){} ctx.restore();
+    if(BOOTH.frame==='mech'){   // 정비사 장면(실제 사진 또는 벡터)이 카메라를 덮고 얼굴 구멍만 카메라
+      const mimg = mechPhotoCanvas || ((mechImgEl.complete&&mechImgEl.naturalWidth)?mechImgEl:null);
+      if(mimg){ ctx.save(); roundRect(ctx,fx,fy,fw,fh,fr); ctx.clip(); ctx.imageSmoothingQuality='high';
+        try{ ctx.drawImage(mimg,fx,fy,fw,fh); }catch(e){} ctx.restore(); }
     }
     ctx.save(); roundRect(ctx,fx,fy,fw,fh,fr); ctx.lineWidth=Math.max(2,ch*0.004); ctx.strokeStyle=acc; ctx.globalAlpha=.6; ctx.stroke(); ctx.restore();
     drawBrackets(ctx,fx,fy,fw,fh,ch,acc);
