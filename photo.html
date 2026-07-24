@@ -84,9 +84,17 @@
   <!-- 컨트롤 -->
   <div id="ctrl">
     <div class="card">
+      <label>촬영 모드</label>
+      <div class="segs" id="modes">
+        <button class="seg on" data-m="">📷 일반 촬영</button>
+        <button class="seg" data-m="mech">🧑‍🔧 항공정비사 되어보기</button>
+      </div>
+      <div class="hint" id="modeHint">항공정비사 모드: TV 정비사 그림의 얼굴 원 안에 서면 내 얼굴이 합성돼요. “아세아는 여러분의 꿈을 응원합니다” 응원 메시지가 함께 표시됩니다.</div>
+    </div>
+    <div class="card">
       <label>화면에 넣을 문구</label>
       <textarea id="cap" maxlength="40" placeholder="예) ASEA 방문 기념 🎉"></textarea>
-      <div class="hint">아래 배너에 표시됩니다. 날짜·학교명은 자동으로 들어가요. (최대 40자)</div>
+      <div class="hint">아래 배너에 표시됩니다. 날짜·학교명은 자동으로 들어가요. (최대 40자) · 정비사 모드에선 응원 멘트가 대신 표시돼요.</div>
     </div>
     <div class="card">
       <label>배경 테마</label>
@@ -194,7 +202,7 @@ function setStatus(txt,cls){$('st').textContent=txt;$('dot').className='dot'+(cl
 function connect(code){
   CODE=code; setStatus('연결 중…');
   conn=PBNET.join(code);
-  conn.on('open',()=>{ setStatus('전광판 연결됨 · 촬영 준비 완료',' on'); flash('연결되었어요!'); sendCap(); if(PLANE_ON) sendPlane(); });
+  conn.on('open',()=>{ setStatus('전광판 연결됨 · 촬영 준비 완료',' on'); flash('연결되었어요!'); sendCap(); if(PLANE_ON) sendPlane(); if(MODE) conn.send({t:'frame',id:MODE}); });
   conn.on('close',()=>{ setStatus('연결 끊김 · 재연결 시도 중…',' off'); });
   conn.on('error',e=>{ setStatus('전광판을 찾지 못했습니다 · 코드 확인',' off'); showCodeInput(); });
   conn.on('data',onData);
@@ -240,6 +248,14 @@ document.querySelectorAll('#secs .seg').forEach(b=>b.addEventListener('click',()
   document.querySelectorAll('#secs .seg').forEach(x=>x.classList.remove('on'));
   b.classList.add('on'); SEC=Number(b.dataset.s)||3;
   if(conn&&conn.open) conn.send({t:'sec',sec:SEC});   // 전광판에도 미리 알림(선택)
+}));
+
+/* 🧑‍🔧 촬영 모드: 일반 / 항공정비사 되어보기(얼굴 넣기) */
+let MODE='';
+document.querySelectorAll('#modes .seg').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('#modes .seg').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on'); MODE=b.dataset.m||'';
+  if(conn&&conn.open) conn.send({t:'frame', id:MODE});
 }));
 
 /* ✈ 비행기 잡기: 켬/끔 + 대수(1~6). 보낼 때마다 전광판이 기종·크기·위치를 랜덤 재배치 */
