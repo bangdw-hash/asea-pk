@@ -2598,6 +2598,15 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
   border:1px solid var(--pb-acc)}
 #pb-planes{position:absolute;inset:0;z-index:4;pointer-events:none;overflow:hidden}
 #pb-planes img{position:absolute;will-change:transform;filter:drop-shadow(0 .8vh 1.4vh rgba(0,0,0,.32))}
+/* 항공정비사 되어보기(얼굴 넣기) : 정비사 장면이 카메라를 덮고 얼굴 구멍으로만 카메라가 보임 */
+#pb-frameimg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:3;display:none}
+#pb-stage.mech #pb-frameimg{display:block}
+#pb-stage.mech #pb-gate,#pb-stage.mech #pb-planes{display:none}
+#pb-facehole{position:absolute;left:50%;top:30.5%;width:15.6%;height:35.8%;transform:translate(-50%,-50%);
+  border:.35vh dashed rgba(255,255,255,.82);border-radius:50%;z-index:5;pointer-events:none;display:none}
+#pb-facehole::after{content:'여기에 얼굴을 맞춰 주세요';position:absolute;left:50%;top:-3.6vh;transform:translateX(-50%);
+  white-space:nowrap;color:#fff;font-size:1.7vh;font-weight:700;letter-spacing:.02em;text-shadow:0 1px 5px rgba(0,0,0,.7)}
+#pb-stage.mech #pb-facehole{display:block}
 #pb-count{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:6;
   font-family:var(--font-display);font-size:44vh;font-weight:900;color:#fff;text-shadow:0 1vh 6vh rgba(0,0,0,.6);opacity:0}
 #pb-count.tick{animation:pbcount 1s ease}
@@ -2632,8 +2641,10 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
   <div id="pb-frame">
     <video id="pb-video" playsinline muted></video>
     <canvas id="pb-seg"></canvas>
+    <img id="pb-frameimg" alt="">
     <div class="pb-cnr tl"></div><div class="pb-cnr tr"></div><div class="pb-cnr bl"></div><div class="pb-cnr br"></div>
     <div id="pb-planes"></div>
+    <div id="pb-facehole"></div>
     <div id="pb-gate">✈ ASEA AVIATION · BOARDING</div>
     <div id="pb-msg"></div>
     <div id="pb-count"></div>
@@ -2685,9 +2696,10 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
 
   const $=id=>document.getElementById(id);
   const stage=$('pb-stage'),video=$('pb-video'),btextEl=$('pb-btext'),bdateEl=$('pb-bdate'),
-        countEl=$('pb-count'),flashEl=$('pb-flash'),msgEl=$('pb-msg'),card=$('pb-card');
+        countEl=$('pb-count'),flashEl=$('pb-flash'),msgEl=$('pb-msg'),card=$('pb-card'),
+        airtEl=$('pb-air-t'),bsubEnEl=$('pb-bsub-en');
   const DEFAULT_TEXT='아세아항공직업전문학교 방문을 환영합니다';
-  const BOOTH={host:null,conn:null,code:null,stream:null,active:false,exitT:null,idleT:null,shooting:false,sec:3,lang:'ko',bg:false,bgimg:'',dateT:null,capText:'',capDate:'',planes:[],planeN:0};
+  const BOOTH={host:null,conn:null,code:null,stream:null,active:false,exitT:null,idleT:null,shooting:false,sec:3,lang:'ko',bg:false,bgimg:'',dateT:null,capText:'',capDate:'',planes:[],planeN:0,frame:''};
   const PB_IDLE_MS=20000;   // 입력 없이 20초 → 자동으로 메인 화면 복귀(중간에 멈춰도, 촬영 완료 후에도)
   window.PB_ON=false;
 
@@ -2804,6 +2816,84 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
       ctx.restore();
     });
   }
+
+  /* ── 🧑‍🔧 항공정비사 되어보기(얼굴 넣기) : 정비사 장면이 카메라를 덮고, 얼굴 구멍으로만 카메라가 비쳐
+     방문객이 항공정비사가 된 기념사진을 촬영. 실제 투명 구멍이라 크로마키 없이 깔끔하게 합성됨. ── */
+  const MECH_MENT={ eyebrow:'✈ 미래의 항공정비사', main:'아세아는 여러분의 꿈을 응원합니다', sub2:'항공정비사가 되는 그 날까지, 여러분을 응원합니다' };
+  function mechSVG(){
+    const navy='#1e2f4d', sky='#8fc0e8', steel='#c7d0d8', glove='#8b95a0';
+    let win='';for(let x=120;x<820;x+=40)win+='<circle cx="'+x+'" cy="366" r="6"/>';
+    let fan='';for(let a=0;a<360;a+=30){const r=a*Math.PI/180;fan+='<line x1="'+(1070+18*Math.cos(r))+'" y1="'+(430+18*Math.sin(r))+'" x2="'+(1070+76*Math.cos(r))+'" y2="'+(430+76*Math.sin(r))+'"/>';}
+    const svg='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720">'
+      +'<defs>'
+      +'<linearGradient id="bgv" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e6eef5"/><stop offset=".55" stop-color="#cddae7"/><stop offset=".56" stop-color="#aeb9c4"/><stop offset="1" stop-color="#7f8b98"/></linearGradient>'
+      +'<linearGradient id="jet" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#d7e0e8"/></linearGradient>'
+      +'<linearGradient id="cov" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2a3f63"/><stop offset="1" stop-color="'+navy+'"/></linearGradient>'
+      +'<linearGradient id="wing" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#bfe0ff"/><stop offset="1" stop-color="#8fb8dd"/></linearGradient>'
+      +'<mask id="hole"><rect width="1280" height="720" fill="#fff"/><ellipse cx="640" cy="220" rx="98" ry="128" fill="#000"/></mask>'
+      +'</defs>'
+      +'<g mask="url(#hole)">'
+      +'<rect width="1280" height="720" fill="url(#bgv)"/>'
+      +'<rect x="60" y="40" width="1160" height="150" fill="url(#wing)" opacity=".6"/>'
+      +'<g stroke="#9aa7b4" stroke-width="3" opacity=".5"><line x1="0" y1="70" x2="1280" y2="70"/><line x1="0" y1="120" x2="1280" y2="120"/><line x1="220" y1="40" x2="220" y2="190"/><line x1="520" y1="40" x2="520" y2="190"/><line x1="820" y1="40" x2="820" y2="190"/><line x1="1080" y1="40" x2="1080" y2="190"/></g>'
+      +'<path d="M-40 360 Q380 300 760 340 L980 356 Q1010 360 980 366 L760 392 Q380 430 -40 430 Z" fill="url(#jet)"/>'
+      +'<path d="M-40 372 L900 360 L900 374 L-40 392 Z" fill="'+sky+'"/>'
+      +'<g fill="#1a2a3a" opacity=".8">'+win+'</g>'
+      +'<ellipse cx="1070" cy="430" rx="130" ry="130" fill="#e9edf1"/>'
+      +'<ellipse cx="1070" cy="430" rx="130" ry="130" fill="none" stroke="#aeb9c4" stroke-width="10"/>'
+      +'<ellipse cx="1070" cy="430" rx="78" ry="78" fill="#5b6670"/>'
+      +'<g stroke="#cfd6dd" stroke-width="6">'+fan+'</g>'
+      +'<ellipse cx="1070" cy="430" rx="16" ry="16" fill="#2b333b"/>'
+      +'<rect x="0" y="560" width="1280" height="160" fill="#8a97a4" opacity=".35"/>'
+      +'<path d="M552 330 Q640 292 728 330" fill="none" stroke="#2a3340" stroke-width="14"/>'
+      +'<rect x="536" y="320" width="34" height="50" rx="12" fill="#2a3340"/><rect x="710" y="320" width="34" height="50" rx="12" fill="#2a3340"/>'
+      +'<rect x="536" y="328" width="34" height="30" rx="10" fill="#c0392b" opacity=".8"/><rect x="710" y="328" width="34" height="30" rx="10" fill="#c0392b" opacity=".8"/>'
+      +'<path d="M470 404 Q470 352 556 340 Q600 336 640 356 Q680 336 724 340 Q810 352 810 404 L836 640 L444 640 Z" fill="url(#cov)"/>'
+      +'<path d="M600 344 L640 388 L680 344 L680 360 L640 404 L600 360 Z" fill="#16233b"/>'
+      +'<line x1="640" y1="388" x2="640" y2="640" stroke="#16233b" stroke-width="6"/>'
+      +'<rect x="470" y="452" width="366" height="26" fill="'+steel+'" opacity=".92" transform="skewX(-4)"/>'
+      +'<rect x="470" y="500" width="366" height="16" fill="'+sky+'" opacity=".8" transform="skewX(-4)"/>'
+      +'<rect x="500" y="360" width="70" height="18" rx="8" fill="'+steel+'" opacity=".85"/>'
+      +'<rect x="712" y="360" width="70" height="18" rx="8" fill="'+steel+'" opacity=".85"/>'
+      +'<rect x="512" y="404" width="96" height="34" rx="8" fill="#0d1c33" stroke="'+sky+'" stroke-width="2"/>'
+      +'<text x="560" y="428" font-family="Arial" font-weight="800" font-size="22" fill="'+sky+'" text-anchor="middle">ASEA</text>'
+      +'<path d="M470 402 Q430 470 470 560 L536 560 Q516 470 540 410 Z" fill="url(#cov)"/>'
+      +'<rect x="452" y="540" width="150" height="104" rx="12" fill="#20262d" stroke="#3a444e" stroke-width="6"/>'
+      +'<rect x="466" y="554" width="122" height="76" rx="6" fill="#33506e"/>'
+      +'<ellipse cx="500" cy="600" rx="34" ry="24" fill="'+glove+'"/>'
+      +'<path d="M810 402 Q862 460 838 556 L772 548 Q794 470 740 410 Z" fill="url(#cov)"/>'
+      +'<ellipse cx="820" cy="540" rx="30" ry="24" fill="'+glove+'"/>'
+      +'<g transform="rotate(-18 820 470)"><rect x="806" y="360" width="28" height="150" rx="8" fill="#8f9aa6"/><path d="M806 360 a18 18 0 1 1 28 0 l-6 10 l-16 0 Z" fill="#b9c3cc"/><circle cx="820" cy="360" r="9" fill="#5b6670"/></g>'
+      +'<rect x="452" y="600" width="384" height="34" rx="6" fill="#12161c"/>'
+      +'<rect x="628" y="606" width="46" height="22" rx="4" fill="#3a444e"/>'
+      +'</g></svg>';
+    return 'data:image/svg+xml;utf8,'+encodeURIComponent(svg);
+  }
+  let mechURI=null; const mechImgEl=new Image();
+  function mechAsset(){ if(mechURI==null){ mechURI=mechSVG(); mechImgEl.src=mechURI; } return mechURI; }
+  mechAsset();   // 미리 로드
+  function setFrame(id){
+    const on = id==='mech';
+    BOOTH.frame = on ? 'mech' : '';
+    const fi=$('pb-frameimg');
+    if(on){
+      if(fi){ fi.src=mechAsset(); }
+      stage.classList.add('mech');
+      if(BOOTH.bg) setBg(false);                 // 배경 합성과 동시 사용 불가
+      BOOTH.planes=[]; BOOTH.planeN=0; renderPlanes();
+      // 배너를 응원 멘트로 연출(학교명·날짜는 그대로 유지)
+      if(airtEl) airtEl.textContent=MECH_MENT.eyebrow;
+      btextEl.textContent=MECH_MENT.main; fitBanner();
+      if(bsubEnEl){ bsubEnEl.textContent=MECH_MENT.sub2; bsubEnEl.style.display=''; }
+      if(BOOTH.active) msg('🧑‍🔧 얼굴을 원 안에 맞추고 촬영하세요');
+    }else{
+      stage.classList.remove('mech');
+      if(airtEl){ const L=PB_LANG[BOOTH.lang]||PB_LANG.ko; airtEl.textContent=L.air; }
+      applyLang(BOOTH.lang||'ko');                // 배너 원상복구
+      setCap(BOOTH.capText);
+      if(BOOTH.active) msg('휴대폰에서 문구를 적고 촬영하세요 📸');
+    }
+  }
   /* 마스크 경계 선명화: MediaPipe 마스크는 저해상도·소프트 엣지라 그대로 확대하면 흐릿해진다.
      출력 해상도로 키운 뒤 0/1로 임계처리(가장자리에 좁은 안티앨리어싱 밴드만 남김) → 누끼 경계가 또렷해짐.
      alpha 인코딩·luminance 인코딩 어느 쪽이든 동작하도록 a*lum 조합을 사용한다. */
@@ -2865,6 +2955,7 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
   }
   function setBg(on){
     if(on){
+      if(BOOTH.frame==='mech') setFrame('');   // 정비사 모드와 동시 사용 불가 → 일반으로 전환
       if(segCanvas.width!==1280){ segCanvas.width=1280; segCanvas.height=720; }
       if(!initSeg()){ segFallback('배경 합성 불가(모델 로드 실패)'); return; }
       BOOTH.bg=true; segGotFrame=false;
@@ -2908,6 +2999,12 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
   function applyLang(v){
     BOOTH.lang=(v in PB_LANG)?v:'ko'; const L=PB_LANG[BOOTH.lang];
     const air=$('pb-air-t'), school=$('pb-school'), en=$('pb-bsub-en');
+    if(BOOTH.frame==='mech'){   // 정비사 모드: 응원 멘트 유지, 학교명만 언어 반영
+      if(air) air.textContent=MECH_MENT.eyebrow;
+      if(school) school.textContent=L.school;
+      if(en){ en.textContent=MECH_MENT.sub2; en.style.display=''; }
+      return;
+    }
     if(air) air.textContent=L.air;
     if(school) school.textContent=L.school;
     if(en){ en.textContent=L.en; en.style.display=L.en?'':'none'; }
@@ -2958,12 +3055,14 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
     else if(m.t==='sec') BOOTH.sec=Math.max(1,Math.min(30,Number(m.sec)||3));
     else if(m.t==='shoot') doShoot(conn, Number(m.sec)||BOOTH.sec||3);
     else if(m.t==='plane') layoutPlanes(Number(m.n)||0);
+    else if(m.t==='frame') setFrame(m.id||'');
     else if(m.t==='quit') exitBooth();
   }
 
   function enterBooth(){
     if(BOOTH.active){ clearTimeout(BOOTH.exitT); touchIdle(); return; }
     BOOTH.active=true; window.PB_ON=true;
+    BOOTH.frame=''; stage.classList.remove('mech');
     try{ if(typeof greetStop==='function') greetStop(); }catch(e){}
     applyTheme(BOOTH.theme||'navy'); applyLang(BOOTH.lang||'ko');
     stage.classList.add('on'); card.classList.add('hide');
@@ -2984,7 +3083,8 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
     BOOTH.active=false; window.PB_ON=false; BOOTH.shooting=false;
     clearTimeout(BOOTH.idleT); BOOTH.idleT=null;
     setBg(false);
-    stage.classList.remove('on'); card.classList.remove('hide'); stopDate(); setCap('');
+    stage.classList.remove('on'); stage.classList.remove('mech'); BOOTH.frame='';   // 정비사 모드 초기화
+    card.classList.remove('hide'); stopDate(); setCap('');
     BOOTH.planes=[]; BOOTH.planeN=0; renderPlanes();   // 비행기 초기화
     if(BOOTH.stream){ BOOTH.stream.getTracks().forEach(t=>t.stop()); BOOTH.stream=null; }
     // 인사 카메라 복구
@@ -3029,9 +3129,11 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
   }
   function drawBanner(ctx,cw,ch,fx,fy,fw,fh,acc){
     const L=PB_LANG[BOOTH.lang]||PB_LANG.ko;
-    const text=btextEl.textContent||DEFAULT_TEXT;
+    const mech=BOOTH.frame==='mech';
+    const text=mech ? MECH_MENT.main : (btextEl.textContent||DEFAULT_TEXT);
     const sub=L.school+' · '+(BOOTH.capDate||nowStr());
-    const enLine=L.en;
+    const enLine=mech ? MECH_MENT.sub2 : L.en;
+    const airLine=mech ? MECH_MENT.eyebrow : L.air;
     let mfs=ch*0.062, guard=0; const maxTextW=fw*0.82;
     ctx.font='800 '+mfs+'px sans-serif';
     while(ctx.measureText(text).width>maxTextW && mfs>ch*0.03 && guard++<90){ mfs-=1; ctx.font='800 '+mfs+'px sans-serif'; }
@@ -3048,7 +3150,7 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
     ctx.strokeStyle=acc; ctx.lineWidth=Math.max(2,ch*0.0035); ctx.stroke();
     ctx.textAlign='center'; ctx.textBaseline='middle';
     let y=by+padY+airfs/2;
-    ctx.font='700 '+Math.round(airfs)+'px sans-serif'; ctx.fillStyle=acc; ctx.fillText(L.air, cw/2, y);
+    ctx.font='700 '+Math.round(airfs)+'px sans-serif'; ctx.fillStyle=acc; ctx.fillText(airLine, cw/2, y);
     y+=airfs/2+gap+mfs/2;
     ctx.font='800 '+Math.round(mfs)+'px sans-serif'; ctx.fillStyle='#fff'; ctx.fillText(text, cw/2, y);
     y+=mfs/2+gap+sfs/2;
@@ -3070,10 +3172,16 @@ setInterval(()=>{const n=new Date(); if(n.getHours()===4&&n.getMinutes()===0) lo
     ctx.translate(cw,0); ctx.scale(-1,1);
     try{ ctx.drawImage(src, cw-dx-dw, dy, dw, dh); }catch(e){ ctx.fillStyle='#0a1120'; ctx.fillRect(0,0,cw,ch); }
     ctx.restore();
+    if(BOOTH.frame==='mech' && mechImgEl.complete && mechImgEl.naturalWidth){   // 정비사 장면이 카메라를 덮고 얼굴 구멍만 카메라
+      ctx.save(); roundRect(ctx,fx,fy,fw,fh,fr); ctx.clip(); ctx.imageSmoothingQuality='high';
+      try{ ctx.drawImage(mechImgEl,fx,fy,fw,fh); }catch(e){} ctx.restore();
+    }
     ctx.save(); roundRect(ctx,fx,fy,fw,fh,fr); ctx.lineWidth=Math.max(2,ch*0.004); ctx.strokeStyle=acc; ctx.globalAlpha=.6; ctx.stroke(); ctx.restore();
     drawBrackets(ctx,fx,fy,fw,fh,ch,acc);
-    drawPill(ctx, fx+cw*0.012, fy+ch*0.022, (BOOTH.themeObj&&BOOTH.themeObj.gate)||'✈ ASEA AVIATION · BOARDING', ch*0.026, acc);
-    ctx.save(); roundRect(ctx,fx,fy,fw,fh,fr); ctx.clip(); drawPlanes(ctx,cw,ch); ctx.restore();   // ✈ 비행기 합성(프레임 안쪽만)
+    if(BOOTH.frame!=='mech'){   // 정비사 모드에선 게이트 pill·비행기 생략(장면 깔끔하게)
+      drawPill(ctx, fx+cw*0.012, fy+ch*0.022, (BOOTH.themeObj&&BOOTH.themeObj.gate)||'✈ ASEA AVIATION · BOARDING', ch*0.026, acc);
+      ctx.save(); roundRect(ctx,fx,fy,fw,fh,fr); ctx.clip(); drawPlanes(ctx,cw,ch); ctx.restore();   // ✈ 비행기 합성(프레임 안쪽만)
+    }
     drawBanner(ctx,cw,ch,fx,fy,fw,fh,acc);
   }
   function capture(conn){
