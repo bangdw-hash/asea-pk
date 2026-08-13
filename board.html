@@ -2503,17 +2503,29 @@ function startPhotos(el,s){
 }
 
 /* ── 자동 갱신 (관리자 변경 → TV 자동 반영) ── */
+const CACHE_KEY="asea_board_cache_v8";
+let syncFail=0, retryT=null;
+/* 새로고침 즉시 표시: 마지막 정상 데이터(로컬 캐시)를 먼저 렌더 → 콜드스타트·일시 네트워크 오류에도 실화면이 바로 뜨고 데모로 안 떨어짐 */
+(function hydrate(){ try{ const c=localStorage.getItem(CACHE_KEY);
+  if(c){ lastHash="__cache__"; renderAll(JSON.parse(c)); } }catch(e){} })();
 async function sync(){
   if(!CONFIG.API_URL){ if(!lastHash){lastHash="demo"; renderAll(DEMO);} return; }
   try{
-    const res=await fetch(CONFIG.API_URL+"?t="+Date.now());
+    const ctrl=new AbortController(); const to=setTimeout(()=>ctrl.abort(),12000);
+    const res=await fetch(CONFIG.API_URL+"?t="+Date.now(),{cache:"no-store",signal:ctrl.signal});
+    clearTimeout(to);
+    if(!res.ok) throw new Error("http "+res.status);
     const data=await res.json();
     const h=JSON.stringify(data);
     if(h!==lastHash){ lastHash=h; renderAll(data); }
+    try{ localStorage.setItem(CACHE_KEY,h); }catch(e){}
     document.getElementById("syncLabel").textContent="LIVE";
+    syncFail=0;
   }catch(e){
-    document.getElementById("syncLabel").textContent="OFFLINE";
-    if(!lastHash){lastHash="demo"; renderAll(DEMO);}
+    const haveReal = lastHash && lastHash!=="demo";     // 캐시/이전 데이터가 있으면 실화면 유지(데모로 안 내려감)
+    document.getElementById("syncLabel").textContent = haveReal ? "LIVE" : "OFFLINE";
+    if(!lastHash){ lastHash="demo"; renderAll(DEMO); }
+    if(++syncFail<=6){ clearTimeout(retryT); retryT=setTimeout(sync,4000); }  // 일시 오류면 30초 안 기다리고 빠르게 재시도
   }
 }
 sync();
