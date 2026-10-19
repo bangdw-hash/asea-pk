@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>전광판 입력판</title>
+<style>
+:root{--primary:#1A73E8;--primary-lt:#E8F0FE;--ink:#1b2433;--dim:#5d6b82;--line:#d6dde8;--bg:#f4f6fa;--r:6px}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 "Malgun Gothic",system-ui,-apple-system,"Segoe UI",sans-serif}
+header{background:#fff;border-bottom:1px solid var(--line);padding:12px 16px;display:flex;gap:12px 20px;align-items:center;flex-wrap:wrap}
+h1{margin:0;font-size:18px}
+header p{margin:0;color:var(--dim);font-size:13px;flex:1 1 280px}
+header a{color:var(--primary);font-weight:600;text-decoration:none;border:1px solid var(--line);padding:6px 12px;border-radius:var(--r);background:#fff}
+main{padding:14px 16px 40px}
+#app{background:#fff;border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+noscript{display:block;padding:20px}
+</style>
+</head>
+<body>
+<header>
+  <h1>전광판 입력판</h1>
+  <p>주요 안내, 환영 문구, 슬라이드, 시설 대관을 입력합니다. 저장하면 TV에 최대 30초 안에 반영됩니다.</p>
+  <a href="board.html?admin" target="_blank" rel="noopener">TV 화면에서 직접 수정</a>
+</header>
+<main><div id="app"></div><noscript>이 화면은 자바스크립트가 필요합니다.</noscript></main>
+<script src="board-db.js"></script>
+<script src="board-admin.js"></script>
+<script>BoardAdmin.page(document.getElementById('app'));</script>
+</body>
+</html>
